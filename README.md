@@ -34,7 +34,8 @@ The settings.py will provide all the menu layout for each mode with minimal codi
 We will be able to play the level here. Here are the game mechanics:
 
 - The level will end when the player will kill all the targets and exit the level.
-- We can take disuises from inconsious / dead bodies so we can blend in a restricted area
+- We can take disguises from unconscious / dead bodies so we can blend in in a restricted area.
+- Enforcers and suspicious meter ?
 - NPC will follow their designated path (using path finding) and do some actions (eat, drink, wait etc). They can interupt their path if something happen (ex: gun shot heard, body found etc)
 - A rating stystem to evaluate how stealthy the player is(best one is 'Silent Assassin')
 
