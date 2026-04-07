@@ -37,12 +37,12 @@ We will be able to play the level here. Here are the game mechanics:
 - We can take disguises from unconscious / dead bodies so we can blend in in a restricted area.
 - Enforcers and suspicious meter ?
 - NPC will follow their designated path (using path finding) and do some actions (eat, drink, wait etc). They can interupt their path if something happen (ex: gun shot heard, body found etc)
-- A rating stystem to evaluate how stealthy the player is(best one is 'Silent Assassin')
+- A rating system to evaluate how stealthy the player is (best one is 'Silent Assassin')
 
 ### Rating system
 
 The rating system is inspired by [this video](https://youtu.be/a3edO5zHDos?si=lQQrm_6qLw8i22xI) where the goal is to improve the rating system from the original games.
 It will rely on a penalty points system rather than a binary system.
 
-For example a body found will not ruin the Silent Assassin immediatly but add penalty points. When a treshold is excedeed, we will lose the rating and go to the next one.
+For example a body found will not ruin the Silent Assassin immediatly but add penalty points (Each actions / interactions have a penalty value). When a treshold is excedeed, we will lose the rating and go to the next one.
 Some actions can restore some points like getting rid of witnesses or erease camera recording.
