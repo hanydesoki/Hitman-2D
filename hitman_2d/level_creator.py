@@ -122,10 +122,10 @@ class LevelCreator:
     def setup_menu_layout(self) -> None:
         self.menu_layout: dict[str, list] = {}
         
-        top: int = self.floor_down.bottom + 20
-        
         for menu_key, menu_widgets in MENU_LAYOUT.items():
             self.menu_layout[menu_key] = []
+            top: int = self.floor_down.bottom + 20
+            
             for widget_key, widget_infos in menu_widgets.items():
                 # print(widget_key, widget_infos)
                 widget_type: str = widget_infos["type"]

@@ -37,7 +37,20 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
         } 
     },
     "tiles": {},
-    "furniture": {},
+    
+    "furniture": {
+        "decoration": {
+            "type": "assets",
+            "label": "Decorations",
+            "path": ["Furnitures", "Decorations"]
+        },
+        "containers": {
+            "type": "assets",
+            "label": "Containers",
+            "path": ["Furnitures", "Containers"]
+        }
+    },
+    
     "player": {},
     "npc": {},
     "npc_path": {},
