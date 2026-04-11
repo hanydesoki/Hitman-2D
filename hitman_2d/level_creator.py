@@ -322,9 +322,9 @@ class LevelCreator:
     def draw_furnitures(self) -> None:
         
         all_furnitures: list[dict] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])[:]
+        is_placing_furniture: bool = self.current_mode == "furniture" and self.is_placing_furniture and self.selected_furniture
         
-        
-        if self.is_placing_furniture and self.selected_furniture:
+        if is_placing_furniture:
             all_furnitures.append(self.selected_furniture)
             
         for i, furniture in enumerate(all_furnitures):
@@ -337,7 +337,7 @@ class LevelCreator:
             preview_surf.set_colorkey("white")
             
             
-            if self.is_placing_furniture and i == (len(all_furnitures) - 1):
+            if is_placing_furniture and i == (len(all_furnitures) - 1):
                 preview_surf.set_alpha(180)
             
             self.window.blit(
