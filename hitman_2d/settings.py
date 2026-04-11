@@ -39,6 +39,16 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
     "tiles": {},
     
     "furniture": {
+        "create_furniture": {
+            "type": "button",
+            "label": "+ Create Furniture",
+            "text": ""
+        },
+        "delete_furniture": {
+            "type": "button",
+            "label": "-  Delete Furniture",
+            "text": ""
+        },
         "decoration": {
             "type": "assets",
             "label": "Decorations",

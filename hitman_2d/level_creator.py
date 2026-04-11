@@ -108,9 +108,14 @@ class LevelCreator:
         self.selected_room_id: str | None = None
         self.valid_room_placement: bool = False
         
+        # Furniture menu states
+        self.selected_furniture: dict = None
+        self.is_placing_furniture: bool = False
+        self.selected_furniture_asset: str = None
+        
         self.json_editor: JSONEditor | None = JSONEditor(
             {
-                "name": "Hi",
+                "name": "John",
                 "type": "civilian"
             },
             x=self.screen_width - RIGTH_SIDEBAR_MENU_WIDTH + 10,
@@ -280,6 +285,12 @@ class LevelCreator:
            debug_dict["Room Height"] = self.room_height
            debug_dict["Placing Room"] = self.is_placing_room
            debug_dict["Selected Room Id"] = self.selected_room_id
+           
+        elif self.current_mode == "furniture":
+            debug_dict["Selected Furniture Asset"] = self.selected_furniture_asset
+            debug_dict["Is Placing Furniture"] = self.is_placing_furniture
+            if self.selected_furniture:
+                debug_dict = debug_dict | {"Selected Furniture " + k: v for k, v in self.selected_furniture.items()}
         
         top_draw: int = 0
         for label, value in debug_dict.items():
@@ -302,9 +313,42 @@ class LevelCreator:
         self.draw_grid()
         self.draw_debug_menu()
         self.draw_rooms()
+        self.draw_furnitures()
         self.draw_sidebar_menu()
         
         self.menu_control.draw()
+        
+    
+    def draw_furnitures(self) -> None:
+        
+        all_furnitures: list[dict] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])[:]
+        
+        
+        if self.is_placing_furniture and self.selected_furniture:
+            all_furnitures.append(self.selected_furniture)
+            
+        for i, furniture in enumerate(all_furnitures):
+            
+            preview_surf: pygame.Surface = pygame.transform.rotate(
+                get_from_dict(self.assets, furniture["asset"].split(os.path.sep), None),
+                furniture["rotation"] * 90
+            )
+            
+            preview_surf.set_colorkey("white")
+            
+            
+            if self.is_placing_furniture and i == (len(all_furnitures) - 1):
+                preview_surf.set_alpha(180)
+            
+            self.window.blit(
+                preview_surf,
+                self.convert_game_pos(
+                    self.camera.convert_pos((
+                        furniture["indexes"][0] * TILE_SIZE,
+                        furniture["indexes"][1] * TILE_SIZE
+                    ))
+                )
+            )
         
     def draw_rooms(self) -> None:
         
@@ -334,7 +378,7 @@ class LevelCreator:
                     )
             
             # Only the selected_room is highlighted      
-            if self.selected_room_id is not None and self.selected_room_id != room_id:
+            if self.current_mode == "room" and self.selected_room_id is not None and self.selected_room_id != room_id:
                 dark_highlight_surf = pygame.Surface((room_obj["width"] * TILE_SIZE, room_obj["height"] * TILE_SIZE))
                 dark_highlight_surf.set_alpha(100)
                 
@@ -347,27 +391,30 @@ class LevelCreator:
                 
                     
         # Draw room preview when placing it
-        mouse_index = self.current_mouse_indexes()
-        if self.is_placing_room and mouse_index is not None:
-            
-            topleft = self.convert_game_pos(
-                self.camera.convert_pos((mouse_index[0] * TILE_SIZE, mouse_index[1] * TILE_SIZE))
-            )
+        if self.current_mode == "room":
+            mouse_index = self.current_mouse_indexes()
+            if self.is_placing_room and mouse_index is not None:
+                
+                topleft = self.convert_game_pos(
+                    self.camera.convert_pos((mouse_index[0] * TILE_SIZE, mouse_index[1] * TILE_SIZE))
+                )
 
-            pygame.draw.rect(
-                self.window,
-                "green" if self.valid_room_placement else "red",
-                (
-                    *topleft,
-                    TILE_SIZE * self.room_width,
-                    TILE_SIZE * self.room_height
-                ),
-                5
-            )
+                pygame.draw.rect(
+                    self.window,
+                    "green" if self.valid_room_placement else "red",
+                    (
+                        *topleft,
+                        TILE_SIZE * self.room_width,
+                        TILE_SIZE * self.room_height
+                    ),
+                    5
+                )
         
     def manage_menu(self, all_events: list[pygame.Event]) -> None:
         if self.current_mode == "room":
             self.manage_room_menu(all_events)
+        elif self.current_mode == "furniture":
+            self.manage_furniture_menu(all_events)
             
         if self.json_editor is not None:
             self.json_editor.update(all_events)
@@ -507,14 +554,85 @@ class LevelCreator:
             room_rect = pygame.Rect(start_x + 1, start_y + 1, room_obj["width"] - 2, room_obj["height"] - 2)
             if current_rect.colliderect(room_rect):
                 self.valid_room_placement = False
-                return 
-            
-                
+                return
+                   
     def delete_room(self, room_id: str) -> None:
         for rooms in self.level_data["rooms"].values():
             if room_id in rooms:
                 del rooms[room_id]
+                
+    
+    def manage_furniture_menu(self, all_events: list[pygame.Event]) -> None:
+        key_pressed = pygame.key.get_pressed()
+        left_clicked: bool = False
+        right_clicked: bool = False
+        scroll_y: int = 0
+        mouse_pressed = pygame.mouse.get_pressed()
+                    
+        ctrl_pressed = key_pressed[pygame.K_LCTRL]
+        
+        mouse_indexes = self.current_mouse_indexes()
+        
+        for event in all_events:
+            if event.type == pygame.MOUSEWHEEL:
+                attr_name: str = "room_width" if ctrl_pressed else "room_height"
+                setattr(
+                    self,
+                    attr_name,
+                    max(3, getattr(self, attr_name, 0) + event.y)
+                )
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[0]:
+                left_clicked = True
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
+                right_clicked = True
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
+                
+        # Asset selection (wall / floor)    
+        for selectable_asset in (w for w in self.menu_layout["furniture"] if isinstance(w, SelectableAsset)):
+            if selectable_asset.is_clicked() or (self.selected_furniture_asset is None):
+                self.selected_furniture_asset = selectable_asset.key
 
+        if Button.all_widgets["create_furniture"].is_clicked():
+            self.selected_furniture = {
+                "indexes": (0, 0),
+                "asset": self.selected_furniture_asset,
+                "rotation": 0
+            }
+            self.is_placing_furniture = True
+            
+        if self.is_placing_furniture and self.selected_furniture is not None:
+            if scroll_y:
+                self.selected_furniture["rotation"] = (self.selected_furniture["rotation"] + scroll_y) % 4
+                
+            if mouse_indexes is not None:
+                self.selected_furniture["indexes"] = mouse_indexes
+                
+            self.selected_furniture["asset"] = self.selected_furniture_asset
+            
+            if left_clicked and mouse_indexes is not None:
+                # TODO: Check valid postition
+                if get_from_dict(
+                    self.level_data,
+                    ["furnitures", str(self.current_floor)],
+                    None
+                ) is None:
+                    set_to_dict(
+                        self.level_data,
+                        ["furnitures", str(self.current_floor)],
+                        []
+                    )
+                    
+                get_from_dict(
+                    self.level_data,
+                    ["furnitures", str(self.current_floor)],
+                    []
+                ).append(self.selected_furniture)
+                
+                self.selected_furniture = None
+                self.is_placing_furniture = False
+        
     
     def run(self) -> None:
         
