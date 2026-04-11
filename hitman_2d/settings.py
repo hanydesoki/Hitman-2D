@@ -44,11 +44,11 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "label": "+ Create Furniture",
             "text": ""
         },
-        "delete_furniture": {
-            "type": "button",
-            "label": "-  Delete Furniture",
-            "text": ""
-        },
+        # "delete_furniture": {
+        #     "type": "button",
+        #     "label": "-  Delete Furniture",
+        #     "text": ""
+        # },
         "decoration": {
             "type": "assets",
             "label": "Decorations",

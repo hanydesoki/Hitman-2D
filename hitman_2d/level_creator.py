@@ -572,6 +572,7 @@ class LevelCreator:
         ctrl_pressed = key_pressed[pygame.K_LCTRL]
         
         mouse_indexes = self.current_mouse_indexes()
+        screen_mouse_pos = self.screen_mouse_pos()
         
         for event in all_events:
             if event.type == pygame.MOUSEWHEEL:
@@ -589,11 +590,12 @@ class LevelCreator:
             if event.type == pygame.MOUSEWHEEL:
                 scroll_y = event.y
                 
-        # Asset selection (wall / floor)    
+        # Asset selection    
         for selectable_asset in (w for w in self.menu_layout["furniture"] if isinstance(w, SelectableAsset)):
             if selectable_asset.is_clicked() or (self.selected_furniture_asset is None):
                 self.selected_furniture_asset = selectable_asset.key
 
+        # Create an new furniture
         if Button.all_widgets["create_furniture"].is_clicked():
             self.selected_furniture = {
                 "indexes": (0, 0),
@@ -602,16 +604,42 @@ class LevelCreator:
             }
             self.is_placing_furniture = True
             
+        has_selected_furniture: bool = False
+        # Furniture selection
+        if left_clicked and not self.is_placing_furniture and screen_mouse_pos is not None:
+            all_furnitures: list[dict] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])
+            for furniture in all_furnitures:
+                surf: pygame.Surface = pygame.transform.rotate(
+                        get_from_dict(
+                        self.assets, 
+                        furniture["asset"].split(os.path.sep), 
+                        pygame.Surface((TILE_SIZE, TILE_SIZE))
+                    ),
+                    furniture["rotation"] * 90
+                )
+
+                rect = surf.get_rect(topleft=(furniture["indexes"][0] * TILE_SIZE, furniture["indexes"][1] * TILE_SIZE))
+                # print(rect, screen_mouse_pos, rect.collidepoint(screen_mouse_pos))
+                if rect.collidepoint(screen_mouse_pos):
+                    all_furnitures.remove(furniture)
+                    self.selected_furniture = furniture
+                    self.selected_furniture_asset = furniture["asset"]
+                    self.is_placing_furniture = True
+                    has_selected_furniture = True
+                    break
+                
+        
+        # Controls whil placing a furniture 
         if self.is_placing_furniture and self.selected_furniture is not None:
             if scroll_y:
-                self.selected_furniture["rotation"] = (self.selected_furniture["rotation"] + scroll_y) % 4
+                self.selected_furniture["rotation"] = (self.selected_furniture["rotation"] - scroll_y) % 4
                 
             if mouse_indexes is not None:
                 self.selected_furniture["indexes"] = mouse_indexes
                 
             self.selected_furniture["asset"] = self.selected_furniture_asset
             
-            if left_clicked and mouse_indexes is not None:
+            if not has_selected_furniture and left_clicked and mouse_indexes is not None:
                 # TODO: Check valid postition
                 if get_from_dict(
                     self.level_data,
@@ -632,6 +660,12 @@ class LevelCreator:
                 
                 self.selected_furniture = None
                 self.is_placing_furniture = False
+
+            if right_clicked:
+                self.selected_furniture = None
+                self.is_placing_furniture = False
+                
+        
         
     
     def run(self) -> None:
