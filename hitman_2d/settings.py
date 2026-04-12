@@ -60,7 +60,13 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "path": ["Furnitures", "Containers"]
         }
     },
-    
+    "door": {
+        "door_assets": {
+            "type": "assets",
+            "label": "Doors",
+            "path": ["Doors"]
+        }
+    },
     "player": {},
     "npc": {},
     "npc_path": {},

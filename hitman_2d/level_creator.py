@@ -113,6 +113,11 @@ class LevelCreator:
         self.is_placing_furniture: bool = False
         self.selected_furniture_asset: str = None
         
+        # Door menu states
+        self.selected_door: dict = None
+        self.is_placing_door: bool = False
+        self.selected_door_asset: str  = None
+        
         self.json_editor: JSONEditor | None = JSONEditor(
             {
                 "name": "John",
@@ -291,6 +296,12 @@ class LevelCreator:
             debug_dict["Is Placing Furniture"] = self.is_placing_furniture
             if self.selected_furniture:
                 debug_dict = debug_dict | {"Selected Furniture " + k: v for k, v in self.selected_furniture.items()}
+                
+        elif self.current_mode == "door":
+            debug_dict["Selected Door Asset"] = self.selected_door_asset
+            debug_dict["Is placing door"] = self.is_placing_door
+            if self.selected_door:
+                debug_dict = debug_dict | {"Selected Door " + k: v for k, v in self.selected_door.items()}
         
         top_draw: int = 0
         for label, value in debug_dict.items():
@@ -314,6 +325,7 @@ class LevelCreator:
         self.draw_debug_menu()
         self.draw_rooms()
         self.draw_furnitures()
+        self.draw_doors()
         self.draw_sidebar_menu()
         
         self.menu_control.draw()
@@ -349,6 +361,9 @@ class LevelCreator:
                     ))
                 )
             )
+            
+    def draw_doors(self) -> None:
+        pass
         
     def draw_rooms(self) -> None:
         
@@ -415,6 +430,8 @@ class LevelCreator:
             self.manage_room_menu(all_events)
         elif self.current_mode == "furniture":
             self.manage_furniture_menu(all_events)
+        elif self.current_mode == "door":
+            self.manage_door_menu(all_events)
             
         if self.json_editor is not None:
             self.json_editor.update(all_events)
@@ -559,6 +576,7 @@ class LevelCreator:
     def delete_room(self, room_id: str) -> None:
         for rooms in self.level_data["rooms"].values():
             if room_id in rooms:
+                # TODO: Delete associated elements (doors, furnitures, npcs, npc paths)
                 del rooms[room_id]
                 
     
@@ -672,6 +690,34 @@ class LevelCreator:
             if right_clicked:
                 self.selected_furniture = None
                 self.is_placing_furniture = False
+                
+    def manage_door_menu(self, all_events: list[pygame.Event]) -> None:
+        key_pressed = pygame.key.get_pressed()
+        left_clicked: bool = False
+        right_clicked: bool = False
+        scroll_y: int = 0
+        mouse_pressed = pygame.mouse.get_pressed()
+                    
+        ctrl_pressed = key_pressed[pygame.K_LCTRL]
+        
+        mouse_indexes = self.current_mouse_indexes()
+        screen_mouse_pos = self.screen_mouse_pos()
+        
+        for event in all_events:
+            if event.type == pygame.MOUSEWHEEL:
+                attr_name: str = "room_width" if ctrl_pressed else "room_height"
+                setattr(
+                    self,
+                    attr_name,
+                    max(3, getattr(self, attr_name, 0) + event.y)
+                )
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[0]:
+                left_clicked = True
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
+                right_clicked = True
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
                 
         
         
