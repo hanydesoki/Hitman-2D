@@ -324,10 +324,10 @@ class LevelCreator:
     
     def draw(self) -> None:
         self.draw_grid()
-        self.draw_debug_menu()
         self.draw_rooms()
         self.draw_furnitures()
         self.draw_doors()
+        self.draw_debug_menu()
         self.draw_sidebar_menu()
         
         self.menu_control.draw()
