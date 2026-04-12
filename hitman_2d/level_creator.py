@@ -213,10 +213,15 @@ class LevelCreator:
         screen_pos = self.screen_mouse_pos()
         
         if screen_pos is not None:
-            return (
-                int(screen_pos[0] / TILE_SIZE),
-                int(screen_pos[1] / TILE_SIZE)
-            )
+            
+            x = screen_pos[0] / TILE_SIZE
+            y = screen_pos[1] / TILE_SIZE
+            
+            if x < 0: x -= 1
+            if y < 0: y -= 1
+    
+            return int(x), int(y)
+            
         
         return None
     
