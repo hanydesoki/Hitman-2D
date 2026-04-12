@@ -594,15 +594,23 @@ class LevelCreator:
         for selectable_asset in (w for w in self.menu_layout["furniture"] if isinstance(w, SelectableAsset)):
             if selectable_asset.is_clicked() or (self.selected_furniture_asset is None):
                 self.selected_furniture_asset = selectable_asset.key
+                
+                self.selected_furniture = {
+                    "indexes": (0, 0),
+                    "asset": self.selected_furniture_asset,
+                    "rotation": 0
+                }
+                
+                self.is_placing_furniture = True
 
         # Create an new furniture
-        if Button.all_widgets["create_furniture"].is_clicked():
-            self.selected_furniture = {
-                "indexes": (0, 0),
-                "asset": self.selected_furniture_asset,
-                "rotation": 0
-            }
-            self.is_placing_furniture = True
+        # if Button.all_widgets["create_furniture"].is_clicked():
+        #     self.selected_furniture = {
+        #         "indexes": (0, 0),
+        #         "asset": self.selected_furniture_asset,
+        #         "rotation": 0
+        #     }
+        #     self.is_placing_furniture = True
             
         has_selected_furniture: bool = False
         # Furniture selection
