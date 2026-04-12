@@ -277,10 +277,12 @@ class LevelCreator:
             self.json_editor.draw()
         
     def draw_debug_menu(self) -> None:
+        mouse_indexes = self.current_mouse_indexes()
         debug_dict: dict[str, str] = {
             "Floor": self.current_floor,
-            "Current index": self.current_mouse_indexes(),
+            "Current index": mouse_indexes,
             "Current position": self.screen_mouse_pos(),
+            "Current_room_id": self.get_room_id_from_indexes(mouse_indexes, self.current_floor)
         }
         
         if self.current_mode == "room":
@@ -363,7 +365,49 @@ class LevelCreator:
             )
             
     def draw_doors(self) -> None:
-        pass
+        all_doors: list[dict] = get_from_dict(self.level_data, ["doors", str(self.current_floor)], [])[:]
+        is_placing_door: bool = self.current_mode == "door" and self.is_placing_door and self.selected_door
+        
+        if is_placing_door:
+            all_doors.append(self.selected_door)
+            
+        for i, door in enumerate(all_doors):
+            
+            is_vertical: bool = bool(door["rotation"])
+            
+            door_surf_1: pygame.Surface = pygame.transform.flip(
+                get_from_dict(self.assets, door["asset"].split(os.path.sep), None),
+                flip_x=False,
+                flip_y=False
+            )
+                
+            door_surf_2 = pygame.transform.flip(
+                door_surf_1, 
+                flip_x=True, 
+                flip_y=False
+            )
+            
+            preview_surf = pygame.Surface((TILE_SIZE * 2, TILE_SIZE))
+            
+            preview_surf.blit(door_surf_1, (0, 0))
+            preview_surf.blit(door_surf_2, (TILE_SIZE, 0))
+            
+            preview_surf = pygame.transform.rotate(preview_surf, door["rotation"] * 90)
+            
+            preview_surf.set_colorkey("white")
+            
+            if is_placing_door and i == (len(all_doors) - 1):
+                preview_surf.set_alpha(180)
+            
+            self.window.blit(
+                preview_surf,
+                self.convert_game_pos(
+                    self.camera.convert_pos((
+                        door["indexes"][0] * TILE_SIZE,
+                        door["indexes"][1] * TILE_SIZE
+                    ))
+                )
+            )
         
     def draw_rooms(self) -> None:
         
@@ -538,18 +582,16 @@ class LevelCreator:
             
         # Room selection
         if left_clicked and mouse_indexes is not None and not is_room_placed and not self.is_placing_room:
-            for id_, room_obj in get_from_dict(self.level_data, ["rooms",str(self.current_floor)], {}).items():
-                indexes: tuple[int, int] = room_obj["indexes"]
-                start_x, start_y = indexes
-                end_x, end_y = start_x + room_obj["width"], start_y + room_obj["height"]
-                
-                if (start_x < mouse_indexes[0] < end_x - 1) and (start_y <= mouse_indexes[1] < end_y - 1):
-                    self.selected_room_id = id_
-                    self.selected_room_floor = room_obj["floor_tile"]
-                    self.selected_room_wall = room_obj["wall_tile"]
-                    self.room_width = room_obj["width"]
-                    self.room_height = room_obj["height"]
-                    break
+            
+            hovered_room_id = self.get_room_id_from_indexes(mouse_indexes, self.current_floor)
+            
+            if hovered_room_id is not None:
+                room_obj: dict = get_from_dict(self.level_data, ["rooms",  str(self.current_floor), hovered_room_id], {})
+                self.selected_room_id = hovered_room_id
+                self.selected_room_floor = room_obj["floor_tile"]
+                self.selected_room_wall = room_obj["wall_tile"]
+                self.room_width = room_obj["width"]
+                self.room_height = room_obj["height"]
             else:
                 self.selected_room_id = None
                 
@@ -565,14 +607,26 @@ class LevelCreator:
         
         current_rect = pygame.Rect(*mouse_indexes, self.room_width, self.room_height)
         
-        for room_obj in get_from_dict(self.level_data, ["rooms",str(self.current_floor)], {}).values():
+        for room_obj in get_from_dict(self.level_data, ["rooms", str(self.current_floor)], {}).values():
             indexes: tuple[int, int] = room_obj["indexes"]
             start_x, start_y = indexes
             room_rect = pygame.Rect(start_x + 1, start_y + 1, room_obj["width"] - 2, room_obj["height"] - 2)
             if current_rect.colliderect(room_rect):
                 self.valid_room_placement = False
                 return
-                   
+    
+    def get_room_id_from_indexes(self, indexes: tuple[int, int] | None, floor: int) -> str | None:
+        if indexes is None: return None
+        
+        for room_id, room_obj in get_from_dict(self.level_data, ["rooms", str(floor)], {}).items():
+            start_x, start_y = room_obj["indexes"]
+            end_x, end_y = start_x + room_obj["width"], start_y + room_obj["height"]
+            
+            if (start_x < indexes[0] < end_x - 1) and (start_y < indexes[1] < end_y - 1):
+                return room_id
+            
+        return None
+                       
     def delete_room(self, room_id: str) -> None:
         for rooms in self.level_data["rooms"].values():
             if room_id in rooms:
@@ -621,14 +675,6 @@ class LevelCreator:
                 
                 self.is_placing_furniture = True
 
-        # Create an new furniture
-        # if Button.all_widgets["create_furniture"].is_clicked():
-        #     self.selected_furniture = {
-        #         "indexes": (0, 0),
-        #         "asset": self.selected_furniture_asset,
-        #         "rotation": 0
-        #     }
-        #     self.is_placing_furniture = True
             
         has_selected_furniture: bool = False
         # Furniture selection
@@ -655,7 +701,7 @@ class LevelCreator:
                     break
                 
         
-        # Controls whil placing a furniture 
+        # Controls while placing a furniture 
         if self.is_placing_furniture and self.selected_furniture is not None:
             if scroll_y:
                 self.selected_furniture["rotation"] = (self.selected_furniture["rotation"] - scroll_y) % 4
@@ -719,7 +765,129 @@ class LevelCreator:
             if event.type == pygame.MOUSEWHEEL:
                 scroll_y = event.y
                 
+        # Asset selection    
+        for selectable_asset in (w for w in self.menu_layout["door"] if isinstance(w, SelectableAsset)):
+            if selectable_asset.is_clicked() or (self.selected_door_asset is None):
+                self.selected_door_asset = selectable_asset.key
+                
+                self.selected_door = {
+                    "indexes": (0, 0),
+                    "asset": self.selected_door_asset,
+                    "rotation": 0
+                }
+                
+                self.is_placing_door = True
+            
+        has_selected_door: bool = False
         
+        # Door selection
+        if left_clicked and not self.is_placing_door and screen_mouse_pos is not None:
+            all_doors: list[dict] = get_from_dict(self.level_data, ["doors", str(self.current_floor)], [])
+            for door in all_doors:
+                surf: pygame.Surface = pygame.transform.rotate(
+                    pygame.Surface((TILE_SIZE, TILE_SIZE * 2)), 
+                    door["rotation"] * 90
+                )
+
+                rect = surf.get_rect(topleft=(door["indexes"][0] * TILE_SIZE, door["indexes"][1] * TILE_SIZE))
+                # print(rect, screen_mouse_pos, rect.collidepoint(screen_mouse_pos))
+                if rect.collidepoint(screen_mouse_pos):
+                    all_doors.remove(door)
+                    self.selected_door = door
+                    self.selected_door_asset = door["asset"]
+                    self.is_placing_door = True
+                    has_selected_door = True
+                    break
+                
+        
+        # Controls while placing a door 
+        if self.is_placing_door and self.selected_door is not None:
+            if scroll_y:
+                self.selected_door["rotation"] = (self.selected_door["rotation"] - scroll_y) % 2
+                
+            if mouse_indexes is not None:
+                self.selected_door["indexes"] = mouse_indexes
+                
+            self.selected_door["asset"] = self.selected_door_asset
+            
+            if not has_selected_door and left_clicked and mouse_indexes is not None:
+                
+                is_vertical: bool = (self.selected_door["rotation"] % 2) == 1
+                
+                door_tiles: list[tuple[int, int]] = [
+                    mouse_indexes,
+                    (mouse_indexes[0] + (not is_vertical), mouse_indexes[1] + is_vertical)
+                ]            
+                
+                if is_vertical:
+                    neighbors_tiles: list[tuple[int, int]] = [
+                        (door_tiles[0][0] - 1, door_tiles[0][1]), # LEFT SIDE
+                        (door_tiles[0][0] - 1, door_tiles[0][1] + 1),
+                        
+                        (door_tiles[0][0] + 1, door_tiles[0][1]), # RIGHT SIDE
+                        (door_tiles[0][0] + 1, door_tiles[0][1] + 1),
+                    ]
+                else:
+                    neighbors_tiles: list[tuple[int, int]] = [
+                        (door_tiles[0][0], door_tiles[0][1] - 1), # TOP SIDE
+                        (door_tiles[0][0] + 1, door_tiles[0][1] - 1),
+                        
+                        (door_tiles[0][0], door_tiles[0][1] + 1), # BOTTOM SIDE
+                        (door_tiles[0][0] + 1, door_tiles[0][1] + 1),
+                    ]
+                
+                
+                
+                # Check if door is between two different rooms
+                neighbors_rooms: list[str] = [
+                    self.get_room_id_from_indexes(indexes, self.current_floor)
+                    for indexes in neighbors_tiles
+                ]
+                
+                # print(door_tiles, neighbors_rooms, neighbors_tiles, sep="\n\n")
+                
+                if not all(neighbors_rooms): return # Door goes to void / wall
+                
+                if neighbors_rooms[0] == neighbors_rooms[3]: return # Door inside a room
+                
+                if not (                                             
+                    (neighbors_rooms[0] == neighbors_rooms[1]) 
+                    and (neighbors_rooms[2] == neighbors_rooms[3])
+                ): 
+                    return # One side have 2 different room
+                
+                # Check door overlapping
+                for door in get_from_dict(self.level_data, ["doors", str(self.current_floor)], []):
+                    if any(tile in door["door_tiles"] for tile in door_tiles):
+                        return
+                
+                self.selected_door["door_tiles"] = door_tiles
+                self.selected_door["neighbors_tiles"] = neighbors_tiles
+                self.selected_door["neighbors_rooms"] = list(set(neighbors_rooms))
+                
+                if get_from_dict(
+                    self.level_data,
+                    ["doors", str(self.current_floor)],
+                    None
+                ) is None:
+                    set_to_dict(
+                        self.level_data,
+                        ["doors", str(self.current_floor)],
+                        []
+                    )
+                    
+                get_from_dict(
+                    self.level_data,
+                    ["doors", str(self.current_floor)],
+                    []
+                ).append(self.selected_door)
+                
+                self.selected_door = None
+                self.is_placing_door = False
+
+            if right_clicked:
+                self.selected_door = None
+                self.is_placing_door = False
         
     
     def run(self) -> None:
