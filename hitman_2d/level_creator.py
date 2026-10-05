@@ -1,6 +1,5 @@
 import os
 import json
-from typing import Any
 
 import pygame
 
@@ -20,7 +19,7 @@ from .text_display import TextDisplay
 from .selectable_asset import SelectableAsset
 from .json_editor import JSONEditor
 from .text_field import TextField
-
+from .checkbox import Checkbox
 
 class LevelCreator:
     
@@ -32,7 +31,7 @@ class LevelCreator:
         self.level_path: str = level_path
         self.asset_path: str = asset_path
         
-        self.level_data: dict = {}
+        self.level_data: LevelData = {}
         
         if os.path.exists(level_path):
             with open(level_path, "r") as f:
@@ -62,13 +61,12 @@ class LevelCreator:
             options={
                 "room": "Room",
                 "door": "Door",
-                "tiles": "Tiles",
+                # "tiles": "Tiles",
                 "furniture": "Furniture",
-                "player": "Player",
+                # "player": "Player",
                 "npc": "NPC",
                 "npc_path": "NPC Path",
                 "exit": "Exit"
-                
             },
             x=10,
             y=self.save_button.rect.bottom + 10,
@@ -109,14 +107,20 @@ class LevelCreator:
         self.valid_room_placement: bool = False
         
         # Furniture menu states
-        self.selected_furniture: dict = None
+        self.selected_furniture: FurnitureData = None
         self.is_placing_furniture: bool = False
         self.selected_furniture_asset: str = None
         
         # Door menu states
-        self.selected_door: dict = None
+        self.selected_door: DoorData = None
         self.is_placing_door: bool = False
         self.selected_door_asset: str  = None
+        
+        # NPC menu states
+        self.selected_npc: NPCData = None
+        self.is_placing_npc: bool = False
+        self.selected_npc_type: str = None
+        self.selected_npc_disguise: str = None
         
         self.json_editor: JSONEditor | None = JSONEditor(
             {
@@ -171,6 +175,8 @@ class LevelCreator:
                     top = text_display.bottom + 20
                     left = 10
                     for surf_key, surf in surfaces.items():
+                        if widget_infos.get("filter", {}).get("type", "") == "equal" and widget_infos.get("filter", {}).get("value", "") != surf_key.split(os.path.sep)[-1]:
+                            continue
                         
                         if left + surf.get_width() + 10 > LEFT_SIDEBAR_MENU_WIDTH:
                             left = 10
@@ -188,6 +194,17 @@ class LevelCreator:
                         left += surf.get_width() + 10     
                                        
                     top += surf.get_height() + 20
+                elif widget_type == "checkbox":
+                    left = 10
+                    
+                    label: str = widget_infos.get("label", "")
+                    checkbox: Checkbox = Checkbox(left, top, widget_key, label, widget_infos.get("default_value", False))
+                    self.menu_layout[menu_key].append(checkbox)
+                    
+                    top = checkbox.bottom + 20
+                    
+                    
+                    
         
     def convert_game_pos(self, pos: tuple[int, int]) -> tuple[int, int]:
         """
@@ -231,6 +248,10 @@ class LevelCreator:
             
         if self.floor_down.is_clicked():
             self.current_floor -= 1
+            
+        if self.save_button.is_clicked():
+            with open(self.level_path, "w") as f:
+                json.dump(self.level_data, f)
     
     
     def draw_grid(self) -> None:
@@ -276,6 +297,8 @@ class LevelCreator:
         
         # Draw current layout
         for widget in self.menu_layout.get(self.menu_control.selected_values[0], []):
+            if hasattr(widget, "update") and callable(widget.update):
+                widget.update()
             widget.draw()
             
         if self.json_editor is not None:
@@ -309,6 +332,12 @@ class LevelCreator:
             debug_dict["Is placing door"] = self.is_placing_door
             if self.selected_door:
                 debug_dict = debug_dict | {"Selected Door " + k: v for k, v in self.selected_door.items()}
+        elif self.current_mode == "npc":
+            # debug_dict["Selected NPC Type"] = self.selected_npc_type
+            # debug_dict["Selected NPC Disguise"] = self.selected_npc_disguise
+            debug_dict["Is placing NPC"] = self.is_placing_npc
+            if self.selected_npc is not None:
+                debug_dict = debug_dict | {"Selected NPC " + k: v for k, v in self.selected_npc.items()}
         
         top_draw: int = 0
         for label, value in debug_dict.items():
@@ -321,7 +350,7 @@ class LevelCreator:
         buttons: list[Button] = [
             self.save_button,
             self.floor_up,
-             self.floor_down
+            self.floor_down
         ]
         
         for button in buttons:
@@ -332,15 +361,83 @@ class LevelCreator:
         self.draw_rooms()
         self.draw_furnitures()
         self.draw_doors()
+        self.draw_npcs()
         self.draw_debug_menu()
         self.draw_sidebar_menu()
         
         self.menu_control.draw()
         
+    def draw_npcs(self) -> None:
+        
+        all_npcs: list[NPCData] = get_from_dict(self.level_data, ["npc", str(self.current_floor)], [])[:]
+        
+        is_placing_npc: bool = self.current_mode == "npc" and self.is_placing_npc and self.selected_npc
+        
+        if is_placing_npc:
+            all_npcs.append(self.selected_npc)
+            
+        for npc in all_npcs:
+            
+            npc_top_head_surf: pygame.Surface = get_from_dict(
+                self.assets, 
+                npc["type"].split(os.path.sep) + ["top_head"], 
+                pygame.Surface((TILE_SIZE, TILE_SIZE))
+            )
+            
+            npc_shoulder_surf: pygame.Surface = get_from_dict(
+                self.assets, 
+                npc["disguise"].split(os.path.sep) + ["shoulder"], 
+                pygame.Surface((TILE_SIZE, TILE_SIZE))
+            )
+            
+            # print(npc["type"].split(os.path.sep) + ["shoulder"], self.assets)
+            # print(npc_shoulder_surf, npc_top_head_surf)
+            
+            preview_surf = pygame.Surface((
+                max(npc_top_head_surf.get_width(), npc_shoulder_surf.get_width()),
+                max(npc_top_head_surf.get_height(), npc_shoulder_surf.get_height())
+            ))
+            
+            preview_surf.fill("white")
+            
+            
+            preview_surf.blit(
+                npc_shoulder_surf, 
+                (
+                    (preview_surf.get_width() // 2) - npc_shoulder_surf.get_width() // 2,
+                    (preview_surf.get_height() // 2) - npc_shoulder_surf.get_height() // 2,
+                )
+            )
+            
+            preview_surf.blit(
+                npc_top_head_surf, 
+                (
+                    (preview_surf.get_width() // 2) - npc_top_head_surf.get_width() // 2,
+                    (preview_surf.get_height() // 2) - npc_top_head_surf.get_height() // 2,
+                )
+            )
+            
+            
+            preview_surf = pygame.transform.rotate(preview_surf, npc["rotation"] * 90)
+            
+            preview_surf.set_colorkey("white")
+            
+            if is_placing_npc and npc is self.selected_npc:
+                preview_surf.set_alpha(180)
+            
+            self.window.blit(
+                preview_surf,
+                self.convert_game_pos(
+                    self.camera.convert_pos((
+                        npc["position"][0] - preview_surf.get_width() // 2,
+                        npc["position"][1] - preview_surf.get_height() // 2
+                    ))
+                )
+            )
     
     def draw_furnitures(self) -> None:
         
-        all_furnitures: list[dict] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])[:]
+        all_furnitures: list[FurnitureData] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])[:]
         is_placing_furniture: bool = self.current_mode == "furniture" and self.is_placing_furniture and self.selected_furniture
         
         if is_placing_furniture:
@@ -370,15 +467,13 @@ class LevelCreator:
             )
             
     def draw_doors(self) -> None:
-        all_doors: list[dict] = get_from_dict(self.level_data, ["doors", str(self.current_floor)], [])[:]
+        all_doors: list[DoorData] = get_from_dict(self.level_data, ["doors", str(self.current_floor)], [])[:]
         is_placing_door: bool = self.current_mode == "door" and self.is_placing_door and self.selected_door
         
         if is_placing_door:
             all_doors.append(self.selected_door)
             
         for i, door in enumerate(all_doors):
-            
-            is_vertical: bool = bool(door["rotation"])
             
             door_surf_1: pygame.Surface = pygame.transform.flip(
                 get_from_dict(self.assets, door["asset"].split(os.path.sep), None),
@@ -415,9 +510,9 @@ class LevelCreator:
             )
         
     def draw_rooms(self) -> None:
-        
+        all_rooms: dict[str, RoomData] = get_from_dict(self.level_data, ["rooms", str(self.current_floor)], {})
         # Rooms
-        for room_id, room_obj in get_from_dict(self.level_data, ["rooms", str(self.current_floor)], {}).items():
+        for room_id, room_obj in all_rooms.items():
             indexes: tuple[int, int] = room_obj["indexes"]
             start_x, start_y = indexes
             end_x, end_y = start_x + room_obj["width"], start_y + room_obj["height"]
@@ -481,6 +576,8 @@ class LevelCreator:
             self.manage_furniture_menu(all_events)
         elif self.current_mode == "door":
             self.manage_door_menu(all_events)
+        elif self.current_mode == "npc":
+            self.manage_npc_menu(all_events)
             
         if self.json_editor is not None:
             self.json_editor.update(all_events)
@@ -841,8 +938,6 @@ class LevelCreator:
                         (door_tiles[0][0] + 1, door_tiles[0][1] + 1),
                     ]
                 
-                
-                
                 # Check if door is between two different rooms
                 neighbors_rooms: list[str] = [
                     self.get_room_id_from_indexes(indexes, self.current_floor)
@@ -893,7 +988,121 @@ class LevelCreator:
             if right_clicked:
                 self.selected_door = None
                 self.is_placing_door = False
+                
+                
+    def manage_npc_menu(self, all_events: list[pygame.Event]) -> None:
+        key_pressed = pygame.key.get_pressed()
+        left_clicked: bool = False
+        right_clicked: bool = False
+        scroll_y: int = 0
+        mouse_pressed = pygame.mouse.get_pressed()
+                    
+        ctrl_pressed = key_pressed[pygame.K_LCTRL]
         
+        mouse_indexes = self.current_mouse_indexes()
+        screen_mouse_pos = self.screen_mouse_pos()
+        
+        has_placed_npc: bool = False
+        
+        for event in all_events:
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[0]:
+                left_clicked = True
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
+                right_clicked = True
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
+                
+        # Asset selection
+        for selectable_asset in (w for w in self.menu_layout["npc"] if isinstance(w, SelectableAsset)):
+            if selectable_asset.is_clicked() or (self.selected_npc_type is None or self.selected_npc_disguise is None):
+                if selectable_asset.key.startswith("Characters"):
+                    self.selected_npc_type = os.path.sep.join(selectable_asset.key.split(os.path.sep)[:-1])
+                elif selectable_asset.key.startswith("Disguise"):
+                    self.selected_npc_disguise = os.path.sep.join(selectable_asset.key.split(os.path.sep)[:-1])
+                
+                self.selected_npc = {
+                    "position": (0, 0),
+                    "type": self.selected_npc_type,
+                    "disguise": self.selected_npc_disguise,
+                    "is_target": False,
+                    "is_guard": False,
+                    "is_player": False,
+                    "rotation": 0
+                }
+                
+                self.is_placing_npc = True
+        
+        
+        if self.selected_npc is not None:
+            for param in ["is_target", "is_guard", "is_player"]:
+                widget: Checkbox = Checkbox.all_widgets[param]
+                
+                if widget.clicked:
+                    self.selected_npc[param] = widget.value
+            
+       
+        # Placing NPC
+        if self.is_placing_npc and (screen_mouse_pos is not None) and (self.selected_npc is not None):
+            
+            self.selected_npc["position"] = screen_mouse_pos
+            
+            # Rotate NPC
+            if scroll_y:
+                self.selected_npc["rotation"] = (self.selected_npc["rotation"] + scroll_y) % 4
+            
+            # Place NPC
+            if left_clicked:
+            
+                if get_from_dict(
+                    self.level_data,
+                    ["npc", str(self.current_floor)],
+                    None
+                ) is None:
+                    set_to_dict(
+                        self.level_data,
+                        ["npc", str(self.current_floor)],
+                        []
+                    )
+                
+                get_from_dict(
+                    self.level_data,
+                    ["npc", str(self.current_floor)],
+                    []
+                ).append(self.selected_npc)
+                
+                self.is_placing_npc = False
+                has_placed_npc = True
+        
+        if right_clicked and self.is_placing_npc:
+            self.is_placing_npc = False
+            self.selected_npc = None
+        
+        # Select placed NPC
+        if left_clicked and not has_placed_npc and not self.is_placing_npc and screen_mouse_pos is not None:
+            all_npcs: list[dict] = get_from_dict(
+                self.level_data,
+                ["npc", str(self.current_floor)],
+                []
+            )
+            
+            for npc in all_npcs:
+                
+                npc_position: tuple[int, int] = npc["position"]
+                
+                if (
+                    ((npc_position[0] - TILE_SIZE // 2) < screen_mouse_pos[0] < (npc_position[0] + TILE_SIZE // 2))
+                    and ((npc_position[1] - TILE_SIZE // 2) < screen_mouse_pos[1] < (npc_position[1] + TILE_SIZE // 2))
+                ):  
+                    Checkbox.all_widgets["is_target"].value = npc.get("is_target", False)
+                    Checkbox.all_widgets["is_guard"].value = npc.get("is_guard", False)
+                    Checkbox.all_widgets["is_player"].value = npc.get("is_player", False)
+                    
+                    self.selected_npc = npc
+                    self.is_placing_npc = True
+                    all_npcs.remove(self.selected_npc)
+                    break
+                    
     
     def run(self) -> None:
         

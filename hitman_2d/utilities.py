@@ -77,7 +77,7 @@ def find_all_paths(
     return sorted(pool_of_results, key=len)
 
 
-def get_from_dict(obj: dict, path: list[str], default_value=None) -> None:
+def get_from_dict(obj: dict, path: list[str], default_value=None) -> Any:
     current_obj = obj
     
     for p in path:
