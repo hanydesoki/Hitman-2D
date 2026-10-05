@@ -1,0 +1,315 @@
+{
+    "rooms": {
+        "0": {
+            "0": {
+                "indexes": [
+                    8,
+                    8
+                ],
+                "wall_tile": "Walls\\1",
+                "floor_tile": "Floor_Tiles\\Wooden_Floor",
+                "floor": 0,
+                "width": 17,
+                "height": 11
+            },
+            "1": {
+                "indexes": [
+                    8,
+                    3
+                ],
+                "wall_tile": "Walls\\1",
+                "floor_tile": "Floor_Tiles\\Wooden_Floor",
+                "floor": 0,
+                "width": 9,
+                "height": 6
+            },
+            "3": {
+                "indexes": [
+                    10,
+                    18
+                ],
+                "wall_tile": "Walls\\1",
+                "floor_tile": "Floor_Tiles\\Bathroom_Floor",
+                "floor": 0,
+                "width": 7,
+                "height": 8
+            },
+            "4": {
+                "indexes": [
+                    24,
+                    10
+                ],
+                "wall_tile": "Walls\\1",
+                "floor_tile": "Floor_Tiles\\Wooden_Floor",
+                "floor": 0,
+                "width": 4,
+                "height": 4
+            },
+            "2": {
+                "indexes": [
+                    16,
+                    3
+                ],
+                "wall_tile": "Walls\\1",
+                "floor_tile": "Floor_Tiles\\Wooden_Floor",
+                "floor": 0,
+                "width": 9,
+                "height": 6
+            }
+        }
+    },
+    "doors": {
+        "0": [
+            {
+                "indexes": [
+                    24,
+                    11
+                ],
+                "asset": "Doors\\0",
+                "rotation": 1,
+                "door_tiles": [
+                    [
+                        24,
+                        11
+                    ],
+                    [
+                        24,
+                        12
+                    ]
+                ],
+                "neighbors_tiles": [
+                    [
+                        23,
+                        11
+                    ],
+                    [
+                        23,
+                        12
+                    ],
+                    [
+                        25,
+                        11
+                    ],
+                    [
+                        25,
+                        12
+                    ]
+                ],
+                "neighbors_rooms": [
+                    "0",
+                    "4"
+                ]
+            },
+            {
+                "indexes": [
+                    16,
+                    5
+                ],
+                "asset": "Doors\\0",
+                "rotation": 1,
+                "door_tiles": [
+                    [
+                        16,
+                        5
+                    ],
+                    [
+                        16,
+                        6
+                    ]
+                ],
+                "neighbors_tiles": [
+                    [
+                        15,
+                        5
+                    ],
+                    [
+                        15,
+                        6
+                    ],
+                    [
+                        17,
+                        5
+                    ],
+                    [
+                        17,
+                        6
+                    ]
+                ],
+                "neighbors_rooms": [
+                    "1",
+                    "2"
+                ]
+            },
+            {
+                "indexes": [
+                    12,
+                    8
+                ],
+                "asset": "Doors\\0",
+                "rotation": 0,
+                "door_tiles": [
+                    [
+                        12,
+                        8
+                    ],
+                    [
+                        13,
+                        8
+                    ]
+                ],
+                "neighbors_tiles": [
+                    [
+                        12,
+                        7
+                    ],
+                    [
+                        13,
+                        7
+                    ],
+                    [
+                        12,
+                        9
+                    ],
+                    [
+                        13,
+                        9
+                    ]
+                ],
+                "neighbors_rooms": [
+                    "1",
+                    "0"
+                ]
+            },
+            {
+                "indexes": [
+                    13,
+                    18
+                ],
+                "asset": "Doors\\0",
+                "rotation": 0,
+                "door_tiles": [
+                    [
+                        13,
+                        18
+                    ],
+                    [
+                        14,
+                        18
+                    ]
+                ],
+                "neighbors_tiles": [
+                    [
+                        13,
+                        17
+                    ],
+                    [
+                        14,
+                        17
+                    ],
+                    [
+                        13,
+                        19
+                    ],
+                    [
+                        14,
+                        19
+                    ]
+                ],
+                "neighbors_rooms": [
+                    "3",
+                    "0"
+                ]
+            }
+        ]
+    },
+    "furnitures": {
+        "0": [
+            {
+                "indexes": [
+                    18,
+                    12
+                ],
+                "asset": "Furnitures\\Decorations\\table_1",
+                "rotation": 3
+            },
+            {
+                "indexes": [
+                    12,
+                    17
+                ],
+                "asset": "Furnitures\\Decorations\\plant_pot",
+                "rotation": 0
+            },
+            {
+                "indexes": [
+                    15,
+                    17
+                ],
+                "asset": "Furnitures\\Decorations\\plant_pot",
+                "rotation": 0
+            },
+            {
+                "indexes": [
+                    11,
+                    23
+                ],
+                "asset": "Furnitures\\Containers\\basket_container",
+                "rotation": 2
+            },
+            {
+                "indexes": [
+                    9,
+                    12
+                ],
+                "asset": "Furnitures\\Containers\\closet",
+                "rotation": 1
+            }
+        ]
+    },
+    "npc": {
+        "0": [
+            {
+                "position": [
+                    584,
+                    220
+                ],
+                "type": "Characters\\NPC1",
+                "disguise": "Disguises\\Guard_1",
+                "rotation": 1
+            },
+            {
+                "position": [
+                    532,
+                    602
+                ],
+                "type": "Characters\\NPC2",
+                "disguise": "Disguises\\Guard_2",
+                "rotation": 3
+            },
+            {
+                "position": [
+                    638,
+                    434
+                ],
+                "type": "Characters\\NPC2",
+                "disguise": "Disguises\\Guard_2",
+                "rotation": 2,
+                "is_target": false,
+                "is_player": false,
+                "is_guard": false
+            },
+            {
+                "position": [
+                    1041,
+                    478
+                ],
+                "type": "Characters\\Agent_47",
+                "disguise": "Disguises\\Agent_47",
+                "rotation": 1,
+                "is_target": false,
+                "is_player": true,
+                "is_guard": false
+            }
+        ]
+    }
+}

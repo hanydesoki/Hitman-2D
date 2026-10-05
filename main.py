@@ -1,10 +1,22 @@
-from hitman_2d import LevelCreator
+from hitman_2d import LevelCreator, Game
+
+
+EDIT_LEVEL: bool = False
 
 
 if __name__ == "__main__":
-    level_creator: LevelCreator = LevelCreator(
-        level_path="Levels/level_1.json",
-        asset_path="Assets"
-    )
+    if EDIT_LEVEL:
+        level_creator: LevelCreator = LevelCreator(
+            level_path="Levels/level_1.json",
+            asset_path="Assets"
+        )
+        level_creator.run()
+    else:
+        game: Game = Game(
+            level_path="Levels/level_1.json",
+            asset_path="Assets"
+        )
+        game.run()
+        
     
-    level_creator.run()
+    
