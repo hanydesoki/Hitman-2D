@@ -135,6 +135,8 @@ class Game:
                 # print(room)
                 
                 self.level_rooms[floor_level][room_id] = room
+                
+        # TODO: Place NPC and player
         
         self.current_floor = "0"
         # print(self.level_rooms)
