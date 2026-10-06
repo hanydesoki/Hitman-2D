@@ -31,6 +31,7 @@ class NPC:
         rotation: int,
         disguise: DisguiseData,
         character: CharacterData,
+        is_target: bool = False,
         
         weapon: "Weapon" | None = None
     ):  
@@ -41,6 +42,8 @@ class NPC:
         self.disguise = disguise
         self.character = character
         
+        self.is_target = is_target
+        
         self.inconsious: bool = False
         self.alive: bool = True
         self.sleeping: bool = False
@@ -49,6 +52,12 @@ class NPC:
         
         
 class Player(NPC):
+    pass
+
+class Civilian(NPC):
+    pass
+
+class Guard(NPC):
     pass
         
         

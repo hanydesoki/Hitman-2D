@@ -13,6 +13,7 @@ from .utilities import (
 
 from .settings import *
 from .camera import Camera
+from .npc import NPC, Player, Guard, Civilian, DisguiseData, CharacterData
 
 
 class Room(TypedDict):
@@ -29,6 +30,7 @@ class Room(TypedDict):
     surface: pygame.Surface
     walls: list[pygame.Rect]
     furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]]
+    npcs: list[NPC]
     
     
 
@@ -53,6 +55,8 @@ class Game:
         
         self.assets: dict = load_assets(asset_path)
         
+        self.player: Player = None
+        
         self.initial_setup()
         
         self.run_loop: bool = True
@@ -67,9 +71,11 @@ class Game:
             self.level_rooms[floor_level] = {}
             
             all_furnitures: list[FurnitureData] = get_from_dict(self.level_data, ["furnitures", floor_level], [])[:]
+            all_npcs: list[NPCData] = get_from_dict(self.level_data, ["npc", floor_level], [])[:]
             
             for room_id, room_data in floor_data.items():
                 room_furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]] = []
+                room_npcs: list[NPC] = []
                 room_walls: list[pygame.Rect] = []
                 
                 # Room Surface
@@ -92,7 +98,7 @@ class Game:
                         
                         room_surface.blit(tile_surf, (i * TILE_SIZE, j * TILE_SIZE))
                         
-                
+                # Place furnitures
                 for furniture in all_furnitures[:]:
                     if (
                         (room_data["indexes"][0] <= furniture["indexes"][0] <= room_data["indexes"][0] + room_data["width"])
@@ -119,8 +125,54 @@ class Game:
                         )
                         
                         room_surface.blit(furniture_surf, relative_furniture_position)
+                        all_furnitures.remove(furniture)
                         
+                # Place NPC and player
+                for npc_data in all_npcs[:]:
+                    if (
+                        ((room_data["indexes"][0] * TILE_SIZE) <= npc_data["position"][0] <= ((room_data["indexes"][0] + room_data["width"]) * TILE_SIZE))
+                        and  
+                        ((room_data["indexes"][1] * TILE_SIZE) <= npc_data["position"][1] <= ((room_data["indexes"][1] + room_data["height"]) * TILE_SIZE))
+                    ):
+                        is_player: bool = npc_data.get("is_player", False)
+                        is_guard: bool = npc_data.get("is_guard", False)
+                        is_target: bool = npc_data.get("is_target", False)
                         
+                        disguise_surfaces: dict[str, pygame.Surface] = get_from_dict(self.assets, npc_data["disguise"].split(os.path.sep), {})
+                        
+                        disguise_data: DisguiseData = {
+                            "name": npc_data["disguise"].split(os.path.sep)[1],
+                            **disguise_surfaces
+                        }
+                        
+                        character_surfaces: dict[str, pygame.Surface] = get_from_dict(self.assets, npc_data["type"].split(os.path.sep), {})
+                                                
+                        character_data: CharacterData = {
+                            "name": npc_data["type"].split(os.path.sep)[1],
+                            **character_surfaces
+                        }
+                        
+                        # print(disguise_data)
+                        
+                        NPCClass = Player if is_player else (Guard if is_guard else Civilian)
+                        
+                        new_npc = NPCClass(
+                            self,
+                            npc_data["position"][0],
+                            npc_data["position"][1],
+                            npc_data["rotation"] * 90,
+                            disguise=disguise_data,
+                            character=character_data,
+                            is_target=is_target
+                        )
+                        
+                        if is_player and self.player is not None:
+                            self.player = new_npc
+                        else:
+                            room_npcs.append(new_npc)
+                        
+                        all_npcs.remove(npc_data)
+                
                 room: Room = {
                     "room_id": room_id,
                     **room_data,
@@ -129,14 +181,16 @@ class Game:
                     "furnitures": room_furnitures,
                     "surface": room_surface,
                     "walls": room_walls,
-                    "position": room_position
+                    "position": room_position,
+                    "npcs": room_npcs
                 }
                 
-                # print(room)
+                print(room)
                 
                 self.level_rooms[floor_level][room_id] = room
                 
-        # TODO: Place NPC and player
+        
+        
         
         self.current_floor = "0"
         # print(self.level_rooms)
