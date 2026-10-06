@@ -270,25 +270,17 @@
         "0": [
             {
                 "position": [
-                    584,
-                    220
+                    556,
+                    243
                 ],
                 "type": "Characters\\NPC1",
                 "disguise": "Disguises\\Guard_1",
-                "rotation": 1
+                "rotation": 1,
+                "is_target": true
             },
             {
                 "position": [
-                    532,
-                    602
-                ],
-                "type": "Characters\\NPC2",
-                "disguise": "Disguises\\Guard_2",
-                "rotation": 3
-            },
-            {
-                "position": [
-                    638,
+                    642,
                     434
                 ],
                 "type": "Characters\\NPC2",
@@ -296,12 +288,22 @@
                 "rotation": 2,
                 "is_target": false,
                 "is_player": false,
-                "is_guard": false
+                "is_guard": true
             },
             {
                 "position": [
-                    1041,
-                    478
+                    528,
+                    526
+                ],
+                "type": "Characters\\NPC2",
+                "disguise": "Disguises\\Guard_2",
+                "rotation": 3,
+                "is_guard": true
+            },
+            {
+                "position": [
+                    915,
+                    463
                 ],
                 "type": "Characters\\Agent_47",
                 "disguise": "Disguises\\Agent_47",

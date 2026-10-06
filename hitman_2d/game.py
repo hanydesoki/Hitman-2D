@@ -14,6 +14,7 @@ from .utilities import (
 from .settings import *
 from .camera import Camera
 from .npc import NPC, Player, Guard, Civilian, DisguiseData, CharacterData
+from .door import Door, DoorSurfaces
 
 
 class Room(TypedDict):
@@ -31,6 +32,7 @@ class Room(TypedDict):
     walls: list[pygame.Rect]
     furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]]
     npcs: list[NPC]
+    doors: list[Door]
     
     
 
@@ -46,6 +48,7 @@ class Game:
         self.asset_path: str = asset_path
         
         self.level_rooms: dict[str, dict[str, Room]] = {}
+        self.room_graph_links: dict[str, dict[str, list[str]]] = {}
                 
         if os.path.exists(level_path):
             with open(level_path, "r") as f:
@@ -69,9 +72,11 @@ class Game:
     def initial_setup(self) -> None:
         for floor_level, floor_data in self.level_data["rooms"].items():
             self.level_rooms[floor_level] = {}
+            self.room_graph_links[floor_level] = {}
             
             all_furnitures: list[FurnitureData] = get_from_dict(self.level_data, ["furnitures", floor_level], [])[:]
             all_npcs: list[NPCData] = get_from_dict(self.level_data, ["npc", floor_level], [])[:]
+            all_doors: list[DoorData] = get_from_dict(self.level_data, ["doors", floor_level], [])[:]
             
             for room_id, room_data in floor_data.items():
                 room_furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]] = []
@@ -89,6 +94,8 @@ class Game:
                 wall_surf: pygame.Surface = get_from_dict(self.assets, room_data["wall_tile"].split(os.path.sep), None)
                 floor_surf1: pygame.Surface = get_from_dict(self.assets, [*room_data["floor_tile"].split(os.path.sep), "0"], None)
                 floor_surf2: pygame.Surface = get_from_dict(self.assets, [*room_data["floor_tile"].split(os.path.sep), "1"], floor_surf1)
+                
+                # TODO: Create room wall collision rects
                 
                 for i in range(room_data["width"]):
                     for j in range(room_data["height"]):
@@ -163,7 +170,8 @@ class Game:
                             npc_data["rotation"] * 90,
                             disguise=disguise_data,
                             character=character_data,
-                            is_target=is_target
+                            is_target=is_target,
+                            room_id=room_id
                         )
                         
                         if is_player and self.player is not None:
@@ -182,18 +190,87 @@ class Game:
                     "surface": room_surface,
                     "walls": room_walls,
                     "position": room_position,
-                    "npcs": room_npcs
+                    "npcs": room_npcs,
+                    "doors": []
                 }
                 
-                print(room)
+                # print(room)
                 
                 self.level_rooms[floor_level][room_id] = room
                 
-        
-        
+            # Place Doors
+            for door_data in all_doors:
+                
+                door_x, door_y = door_data["indexes"][0] * TILE_SIZE, door_data["indexes"][1] * TILE_SIZE
+                
+                room_1_id: str = door_data["neighbors_rooms"][0]
+                room_1_left: int = door_data["neighbors_tiles"][0][0] * TILE_SIZE
+                room_1_top: int = door_data["neighbors_tiles"][0][1] * TILE_SIZE
+                
+                room_1_width: int = door_data["neighbors_tiles"][1][0] * TILE_SIZE - room_1_left
+                room_1_height: int = door_data["neighbors_tiles"][1][1] * TILE_SIZE - room_1_top
+                
+                room_1_trigger_rect: pygame.Rect = pygame.Rect(
+                    room_1_left,
+                    room_1_top,
+                    room_1_width,
+                    room_1_height
+                )
+                
+                room_2_id: str = door_data["neighbors_rooms"][1]
+                room_2_left: int = door_data["neighbors_tiles"][2][0] * TILE_SIZE
+                room_2_top: int = door_data["neighbors_tiles"][2][1] * TILE_SIZE
+                
+                room_2_width: int = door_data["neighbors_tiles"][3][0] * TILE_SIZE - room_2_left
+                room_2_height: int = door_data["neighbors_tiles"][3][1] * TILE_SIZE - room_2_top
+                
+                room_2_trigger_rect: pygame.Rect = pygame.Rect(
+                    room_2_left,
+                    room_2_top,
+                    room_2_width,
+                    room_2_height
+                )
+                
+                trigger_rects: dict[str, pygame.Rect] = {
+                    room_1_id: room_1_trigger_rect,
+                    room_2_id: room_2_trigger_rect,
+                }
+                
+                door_surf: pygame.Surface = get_from_dict(self.assets, door_data["asset"].split(os.path.sep), None)
+                floor_surf: pygame.Surface = get_from_dict(self.assets, self.level_rooms[floor_level][room_1_id]["floor_tile"].split(os.path.sep), None)
+                
+                door_surfaces: DoorSurfaces = {
+                    "door_surface": door_surf,
+                    "floor_surface": floor_surf
+                }
+                
+                new_door = Door(
+                    self,
+                    x=door_x,
+                    y=door_y,
+                    rotation=door_data["rotation"],
+                    surfaces=door_surfaces,
+                    trigger_rects=trigger_rects
+                )
+                
+                self.level_rooms[floor_level][room_1_id]["doors"].append(new_door)
+                self.level_rooms[floor_level][room_2_id]["doors"].append(new_door)
+
+                # TODO: Generate room graph links
+                if self.room_graph_links[floor_level].get(room_1_id, None) is None:
+                    self.room_graph_links[floor_level][room_1_id] = []
+                    
+                if self.room_graph_links[floor_level].get(room_2_id, None) is None:
+                    self.room_graph_links[floor_level][room_2_id] = []
+                    
+                self.room_graph_links[floor_level][room_1_id].append(room_2_id)
+                self.room_graph_links[floor_level][room_2_id].append(room_1_id)
         
         self.current_floor = "0"
-        # print(self.level_rooms)
+        
+        # print(self.level_rooms["0"]["0"])
+        # print(self.room_graph_links["0"])
+        
         
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)

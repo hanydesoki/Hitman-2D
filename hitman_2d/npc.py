@@ -31,6 +31,7 @@ class NPC:
         rotation: int,
         disguise: DisguiseData,
         character: CharacterData,
+        room_id: str,
         is_target: bool = False,
         
         weapon: "Weapon" | None = None
@@ -41,7 +42,7 @@ class NPC:
         self.rotation = rotation
         self.disguise = disguise
         self.character = character
-        
+        self.room_id = room_id
         self.is_target = is_target
         
         self.inconsious: bool = False

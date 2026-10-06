@@ -42,18 +42,18 @@ def find_all_element_from_type(obj: dict, element_type: list[type]) -> dict:
 
 
 def find_all_paths(
-    links: dict[int, tuple[int]], 
-    start: int, 
-    end: int
+    links: dict[str, list[str]], 
+    start: str, 
+    end: str
     
-) -> list[list[int]]:
+) -> list[list[str]]:
     """
     Return a list of all valid path from start to end
     in the graph links.
     """
-    stack: list[list[int]] = [[start]]
+    stack: list[list[str]] = [[start]]
     
-    pool_of_results: list[list[int]] = []    
+    pool_of_results: list[list[str]] = []    
     
     while stack:
         
