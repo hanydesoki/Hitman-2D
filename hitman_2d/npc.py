@@ -1,10 +1,12 @@
-from typing import TypedDict, TYPE_CHECKING
+import random
+from typing import TypedDict, TYPE_CHECKING, Generator
 
 import pygame
 
 if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type hinting
     from .game import Game
     from .weapon import Weapon
+    from .game import Room
 
 
 class DisguiseData(TypedDict):
@@ -26,12 +28,13 @@ class GameCharacter:
     def __init__(
         self,
         game: "Game",
-        x: int,
-        y: int,
+        x: float,
+        y: float,
         rotation: int,
         disguise: DisguiseData,
         character: CharacterData,
         room_id: str,
+        floor_id: str,
         is_target: bool = False,
         
         weapon: "Weapon" | None = None
@@ -43,6 +46,7 @@ class GameCharacter:
         self.disguise = disguise
         self.character = character
         self.room_id = room_id
+        self.floor_id = floor_id
         self.is_target = is_target
         self.weapon = weapon
         
@@ -51,6 +55,9 @@ class GameCharacter:
         self.inconsious: bool = False
         self.alive: bool = True
         self.sleeping: bool = False
+        
+        self.vx: float = 0
+        self.vy: float = 0
         
         self.metadata: dict = {}
         
@@ -69,14 +76,61 @@ class GameCharacter:
         else:
             pass
         
+    def manage_movement(self) -> None:
+        self.x += self.vx
+        self.rect.x = self.x
+        
+        rect = self.check_collision()
+        if rect is not None:
+            if self.vx > 0:
+                self.rect.right = rect.left
+            else:
+                self.rect.left = rect.right
+            self.x = self.rect.centerx
+        
+        self.y += self.vy
+        self.rect.y = self.y
+        
+        rect = self.check_collision()
+        
+        if rect is not None:
+            if self.vy > 0:
+                self.rect.bottom = rect.top
+            else:
+                self.rect.top = rect.bottom
+            self.y = self.rect.centery
+                
+        
+        
+    def check_collision(self) -> pygame.Rect | None:
+        for collision_rect in self.get_room_collision_rects():
+            if self.rect.colliderect(collision_rect):
+                return collision_rect
+        
+        return None
+        
     def update(self) -> None:
         pass
-
-
+        
+    def get_room_collision_rects(self) -> Generator[pygame.Rect, None, None]:
+        for wall_rect in self.current_room["walls"]:
+            yield wall_rect
+            
+        for _, __, furniture_rect in self.current_room["furnitures"]:
+            yield furniture_rect
+            
+    @property
+    def current_room(self) -> Room:
+        return self.game.level_rooms[self.floor_id][self.room_id]
  
 class NPC(GameCharacter):
+    
     def update(self):
         self.rotation = (self.rotation + 1) % 360
+        # self.vx = random.random() * 2 - 1
+        # self.vy = random.random() * 2 - 1
+        
+        self.manage_movement()
         
         
 class Player(GameCharacter):

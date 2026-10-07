@@ -200,7 +200,8 @@ class Game:
                             disguise=disguise_data,
                             character=character_data,
                             is_target=is_target,
-                            room_id=room_id
+                            room_id=room_id,
+                            floor_id=floor_level
                         )
                         
                         if is_player and self.player is None:
