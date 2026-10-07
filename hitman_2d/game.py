@@ -203,7 +203,7 @@ class Game:
                             room_id=room_id
                         )
                         
-                        if is_player and self.player is not None:
+                        if is_player and self.player is None:
                             self.player = new_npc
                         else:
                             room_npcs.append(new_npc)
@@ -298,10 +298,23 @@ class Game:
         # print(self.level_rooms["0"]["0"])
         # print(self.room_graph_links["0"])
         
+    def manage_npcs(self) -> None:
+        for room in self.level_rooms[self.current_floor].values():
+            for npc in room["npcs"]:
+                npc.update()
+        
         
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)
         self.draw_rooms(draw_collisions=False)
+        self.draw_npcs()
+        
+    def draw_npcs(self) -> None:
+        for room in self.level_rooms[self.current_floor].values():
+            for npc in room["npcs"]:
+                npc.draw()
+                
+        self.player.draw()
     
     def draw_rooms(self, draw_collisions: bool = False) -> None:
         
@@ -315,11 +328,13 @@ class Game:
                     wall_rect = wall_rect.copy()
                     wall_rect.topleft = self.camera.convert_pos(wall_rect.topleft)
                     pygame.draw.rect(self.window, "red", wall_rect, width=2)
-                    print(wall_rect)
                     
                 for _, __, furniture_rect in room["furnitures"]:
                     furniture_rect.topleft = self.camera.convert_pos(furniture_rect.topleft)
                     pygame.draw.rect(self.window, "red", furniture_rect, width=2)
+                    
+    def update(self) -> None:
+        self.manage_npcs()
         
     def run(self) -> None:
         while self.run_loop:
@@ -331,6 +346,9 @@ class Game:
             for event in all_events:
                 if event.type == pygame.QUIT or ((event.type == pygame.KEYDOWN) and (event.key == pygame.K_ESCAPE)):
                     self.run_loop = False
+                    
+            self.update()
             
             self.draw()
             pygame.display.update()
+            self.clock.tick(FPS)
