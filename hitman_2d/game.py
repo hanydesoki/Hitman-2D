@@ -95,7 +95,36 @@ class Game:
                 floor_surf1: pygame.Surface = get_from_dict(self.assets, [*room_data["floor_tile"].split(os.path.sep), "0"], None)
                 floor_surf2: pygame.Surface = get_from_dict(self.assets, [*room_data["floor_tile"].split(os.path.sep), "1"], floor_surf1)
                 
-                # TODO: Create room wall collision rects
+                # Create room wall collision rects
+                top_wall_rect = pygame.Rect(
+                    room_position[0],
+                    room_position[1],
+                    room_data["width"] * TILE_SIZE,
+                    TILE_SIZE,
+                )
+                
+                left_wall_rect = pygame.Rect(
+                    room_position[0],
+                    room_position[1],
+                    TILE_SIZE,
+                    pixel_height
+                )
+                
+                bottom_wall_rect = pygame.Rect(
+                    room_position[0],
+                    room_position[1] + (room_data["height"] - 1) * TILE_SIZE,
+                    pixel_width,
+                    TILE_SIZE
+                )
+                
+                right_wall_rect = pygame.Rect(
+                    room_position[0] + (room_data["width"] - 1) * TILE_SIZE,
+                    room_position[1],
+                    TILE_SIZE,
+                    pixel_height
+                )
+                
+                room_walls.extend((top_wall_rect, left_wall_rect, bottom_wall_rect, right_wall_rect))
                 
                 for i in range(room_data["width"]):
                     for j in range(room_data["height"]):
@@ -194,8 +223,6 @@ class Game:
                     "doors": []
                 }
                 
-                # print(room)
-                
                 self.level_rooms[floor_level][room_id] = room
                 
             # Place Doors
@@ -256,7 +283,7 @@ class Game:
                 self.level_rooms[floor_level][room_1_id]["doors"].append(new_door)
                 self.level_rooms[floor_level][room_2_id]["doors"].append(new_door)
 
-                # TODO: Generate room graph links
+                # Generate room graph links
                 if self.room_graph_links[floor_level].get(room_1_id, None) is None:
                     self.room_graph_links[floor_level][room_1_id] = []
                     
@@ -274,14 +301,25 @@ class Game:
         
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)
-        self.draw_rooms()
+        self.draw_rooms(draw_collisions=False)
     
-    def draw_rooms(self) -> None:
+    def draw_rooms(self, draw_collisions: bool = False) -> None:
         
         floor_rooms = self.level_rooms[self.current_floor]
         
         for room in floor_rooms.values():
             self.window.blit(room["surface"], self.camera.convert_pos(room["position"]))
+            
+            if draw_collisions:
+                for wall_rect in room["walls"]:
+                    wall_rect = wall_rect.copy()
+                    wall_rect.topleft = self.camera.convert_pos(wall_rect.topleft)
+                    pygame.draw.rect(self.window, "red", wall_rect, width=2)
+                    print(wall_rect)
+                    
+                for _, __, furniture_rect in room["furnitures"]:
+                    furniture_rect.topleft = self.camera.convert_pos(furniture_rect.topleft)
+                    pygame.draw.rect(self.window, "red", furniture_rect, width=2)
         
     def run(self) -> None:
         while self.run_loop:

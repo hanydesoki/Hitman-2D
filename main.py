@@ -1,7 +1,7 @@
 from hitman_2d import LevelCreator, Game
 
 
-EDIT_LEVEL: bool = True
+EDIT_LEVEL: bool = False
 
 
 if __name__ == "__main__":
