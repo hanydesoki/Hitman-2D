@@ -49,6 +49,8 @@ class Game:
         
         self.level_rooms: dict[str, dict[str, Room]] = {}
         self.room_graph_links: dict[str, dict[str, list[str]]] = {}
+        
+        self.doors: dict[str, list[Door]] = {}
                 
         if os.path.exists(level_path):
             with open(level_path, "r") as f:
@@ -70,7 +72,9 @@ class Game:
         self.current_floor: str = "0"
         
     def initial_setup(self) -> None:
+        
         for floor_level, floor_data in self.level_data["rooms"].items():
+            self.doors[floor_level] = []
             self.level_rooms[floor_level] = {}
             self.room_graph_links[floor_level] = {}
             
@@ -265,7 +269,7 @@ class Game:
                 }
                 
                 door_surf: pygame.Surface = get_from_dict(self.assets, door_data["asset"].split(os.path.sep), None)
-                floor_surf: pygame.Surface = get_from_dict(self.assets, self.level_rooms[floor_level][room_1_id]["floor_tile"].split(os.path.sep), None)
+                floor_surf: pygame.Surface = get_from_dict(self.assets, self.level_rooms[floor_level][room_1_id]["floor_tile"].split(os.path.sep) + ["0"], None)
                 
                 door_surfaces: DoorSurfaces = {
                     "door_surface": door_surf,
@@ -283,6 +287,8 @@ class Game:
                 
                 self.level_rooms[floor_level][room_1_id]["doors"].append(new_door)
                 self.level_rooms[floor_level][room_2_id]["doors"].append(new_door)
+                
+                self.doors[floor_level].append(new_door)
 
                 # Generate room graph links
                 if self.room_graph_links[floor_level].get(room_1_id, None) is None:
@@ -303,13 +309,34 @@ class Game:
         for room in self.level_rooms[self.current_floor].values():
             for npc in room["npcs"]:
                 npc.update()
+                
         self.player.update()
-        
+    
+    def manage_doors(self) -> None:
+        for door in self.doors[self.current_floor]:
+            door.update()
+            
+        # Test open / close
+        if pygame.key.get_pressed()[pygame.K_o]:
+            for door in self.doors[self.current_floor]:
+                door.open_door()
+                
+        if pygame.key.get_pressed()[pygame.K_c]:
+            for door in self.doors[self.current_floor]:
+                door.cloose_door()
+            
         
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)
         self.draw_rooms(draw_collisions=True)
+        self.draw_doors()
         self.draw_npcs()
+        
+    def draw_doors(self) -> None:
+        floor_doors = self.doors[self.current_floor]
+                
+        for door in floor_doors:
+            door.draw()
         
     def draw_npcs(self) -> None:
         for room in self.level_rooms[self.current_floor].values():
@@ -337,6 +364,7 @@ class Game:
                     
     def update(self) -> None:
         self.manage_npcs()
+        self.manage_doors()
         
     def run(self) -> None:
         while self.run_loop:

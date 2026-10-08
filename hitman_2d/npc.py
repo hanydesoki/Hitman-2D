@@ -95,7 +95,6 @@ class GameCharacter:
         
 
         if rect is not None:
-            print(rect.left - 1, self.rect.right)
             if self.vx > 0:
                 self.rect.right = rect.left
                 self.x = self.rect.centerx
@@ -153,7 +152,7 @@ class Player(GameCharacter):
         
         key_pressed = pygame.key.get_pressed()
         
-        speed: float = self.walk_speed
+        speed: float = self.run_speed if key_pressed[pygame.K_LSHIFT] else self.walk_speed
         
         self.vx = 0
         self.vy = 0
@@ -171,8 +170,8 @@ class Player(GameCharacter):
         if not (self.vx == 0 and self.vy == 0):
             magnitude = math.sqrt(self.vx ** 2 + self.vy ** 2)
 
-            self.vx /= magnitude
-            self.vy /= magnitude
+            self.vx = self.vx / magnitude * speed
+            self.vy = self.vy / magnitude * speed
         
     def update(self):
         self.manage_controls()
