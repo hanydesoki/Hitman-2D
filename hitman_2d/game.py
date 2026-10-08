@@ -33,6 +33,7 @@ class Room(TypedDict):
     furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]]
     npcs: list[NPC]
     doors: list[Door]
+    rect: pygame.Rect
     
     
 
@@ -225,7 +226,8 @@ class Game:
                     "walls": room_walls,
                     "position": room_position,
                     "npcs": room_npcs,
-                    "doors": []
+                    "doors": [],
+                    "rect": pygame.Rect(*room_position, pixel_width, pixel_height)
                 }
                 
                 self.level_rooms[floor_level][room_id] = room
@@ -239,8 +241,8 @@ class Game:
                 room_1_left: int = door_data["neighbors_tiles"][0][0] * TILE_SIZE
                 room_1_top: int = door_data["neighbors_tiles"][0][1] * TILE_SIZE
                 
-                room_1_width: int = door_data["neighbors_tiles"][1][0] * TILE_SIZE - room_1_left
-                room_1_height: int = door_data["neighbors_tiles"][1][1] * TILE_SIZE - room_1_top
+                room_1_width: int = (door_data["neighbors_tiles"][1][0] + 1) * TILE_SIZE - room_1_left
+                room_1_height: int = (door_data["neighbors_tiles"][1][1] + 1) * TILE_SIZE - room_1_top
                 
                 room_1_trigger_rect: pygame.Rect = pygame.Rect(
                     room_1_left,
@@ -253,8 +255,8 @@ class Game:
                 room_2_left: int = door_data["neighbors_tiles"][2][0] * TILE_SIZE
                 room_2_top: int = door_data["neighbors_tiles"][2][1] * TILE_SIZE
                 
-                room_2_width: int = door_data["neighbors_tiles"][3][0] * TILE_SIZE - room_2_left
-                room_2_height: int = door_data["neighbors_tiles"][3][1] * TILE_SIZE - room_2_top
+                room_2_width: int = (door_data["neighbors_tiles"][3][0] + 1) * TILE_SIZE - room_2_left
+                room_2_height: int = (door_data["neighbors_tiles"][3][1] + 1) * TILE_SIZE - room_2_top
                 
                 room_2_trigger_rect: pygame.Rect = pygame.Rect(
                     room_2_left,
@@ -262,6 +264,9 @@ class Game:
                     room_2_width,
                     room_2_height
                 )
+                
+                if self.level_rooms[floor_level][room_1_id]["rect"].collidepoint(room_2_trigger_rect.center):
+                    room_2_id, room_1_id = room_1_id, room_2_id
                 
                 trigger_rects: dict[str, pygame.Rect] = {
                     room_1_id: room_1_trigger_rect,

@@ -16,6 +16,7 @@ if __name__ == "__main__":
             level_path="Levels/level_1.json",
             asset_path="Assets"
         )
+        
         game.run()
         
     

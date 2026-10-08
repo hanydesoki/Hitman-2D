@@ -12,6 +12,7 @@ if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type h
     from .game import Game
     from .weapon import Weapon
     from .game import Room
+    from .door import Door
 
 
 class DisguiseData(TypedDict):
@@ -195,7 +196,38 @@ class GameCharacter:
         
         return True
         
-            
+    def pass_door(self, door: Door) -> None:
+        
+        current_room_trigger = door.trigger_rects[self.room_id]
+        target_room_id = [rid for rid in door.trigger_rects.keys() if rid != self.room_id][0]
+        target_room_trigger = door.trigger_rects[target_room_id]
+        
+        is_vertical: bool = door.rotation in [1, 3]
+        
+        if is_vertical:
+            rotation = (door.rotation * 90 + (
+                current_room_trigger.x < target_room_trigger.x
+            ) * 180) % 360
+        else:
+            rotation = (door.rotation * 90 + (
+                current_room_trigger.y < target_room_trigger.y
+            ) * 180) % 360
+        
+        door.open_door()
+        self.focus_position(
+            target_position=current_room_trigger.center,
+            target_rotation=rotation,
+            number_frames=30,
+            clear_queue=True
+        )
+        
+        self.focus_position(
+            target_position=target_room_trigger.center,
+            target_rotation=rotation,
+            number_frames=60
+        )
+        
+        self.room_id = target_room_id
         
     def update(self) -> None:
         pass
@@ -222,20 +254,18 @@ class Player(GameCharacter):
     
     def manage_controls(self) -> None:
         
-        if pygame.key.get_just_released()[pygame.K_SPACE]:
-            self.focus_position(
-                (random.randint(100, 500), (random.randint(100, 500))),
-                random.randint(100, 359),
-                60 * 2,
-            )
+        # if pygame.key.get_just_released()[pygame.K_SPACE]:
+        #     self.focus_position(
+        #         (random.randint(100, 500), (random.randint(100, 500))),
+        #         random.randint(100, 359),
+        #         60 * 2,
+        #     )
         
         if self.door_transition or self.focus_points: return
         
         key_pressed = pygame.key.get_pressed()
         
         speed: float = self.run_speed if key_pressed[pygame.K_LSHIFT] else self.walk_speed
-        
-        
         
         self.vx = 0
         self.vy = 0
@@ -255,6 +285,16 @@ class Player(GameCharacter):
 
             self.vx = self.vx / magnitude * speed
             self.vy = self.vy / magnitude * speed
+        
+        # Pressing Space will attempt to pass throug a door and change room
+        if pygame.key.get_just_released()[pygame.K_SPACE]:
+            self.check_and_pass_door()
+            
+    def check_and_pass_door(self) -> None:
+        for door in self.current_room["doors"]:
+            if door.trigger_rects[self.room_id].collidepoint(self.rect.center):
+                self.pass_door(door)
+                return
         
     def update(self):
         self.manage_controls()
