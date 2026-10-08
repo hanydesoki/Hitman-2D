@@ -34,9 +34,7 @@ class Room(TypedDict):
     npcs: list[NPC]
     doors: list[Door]
     rect: pygame.Rect
-    
-    
-
+    pathfinding_grid: list[list[int]]
 
 class Game:
     
@@ -92,6 +90,8 @@ class Game:
                 pixel_width: int = room_data["width"] * TILE_SIZE
                 pixel_height: int = room_data["height"] * TILE_SIZE
                 
+                pathfinding_grid: list[list[int]] = [[1 for _ in range(room_data["width"])] for __ in range(room_data["height"])]
+                
                 room_position: tuple[int, int] = (room_data["indexes"][0] * TILE_SIZE, room_data["indexes"][1] * TILE_SIZE)
                 
                 room_surface = pygame.Surface((pixel_width, pixel_height))
@@ -134,6 +134,10 @@ class Game:
                 for i in range(room_data["width"]):
                     for j in range(room_data["height"]):
                         is_wall: bool = (i in [0, room_data["width"] - 1]) or (j in [0, room_data["height"] - 1])
+                          
+                        if is_wall:
+                            pathfinding_grid[j][i] = 0
+                            
                         
                         tile_surf: pygame.Surface = wall_surf if is_wall else (floor_surf1 if (i + j) % 2 else floor_surf2)
                         
@@ -168,6 +172,26 @@ class Game:
                         room_surface.blit(furniture_surf, relative_furniture_position)
                         all_furnitures.remove(furniture)
                         
+                        furniture_tile_width: int = round(furniture_rect.width / TILE_SIZE)
+                        furniture_tile_height: int = round(furniture_rect.height / TILE_SIZE)
+                        
+                        # if room_id == "0":
+                        #     for row in pathfinding_grid:
+                        #         print(row) 
+                        
+                        furniture_start_i = furniture["indexes"][0] - room_data["indexes"][0]
+                        furniture_start_j = furniture["indexes"][1] - room_data["indexes"][1]
+                        
+                        # if room_id == "0":
+                        #     print(furniture_start_i, furniture_start_i + furniture_tile_width)
+                        #     print(furniture_start_j, furniture_start_j + furniture_tile_height)
+                            
+                        for i in range(furniture_start_i, furniture_start_i + furniture_tile_width):
+                            for j in range(furniture_start_j, furniture_start_j + furniture_tile_height):
+                                pathfinding_grid[j][i] = 0
+                        
+                        
+                                     
                 # Place NPC and player
                 for npc_data in all_npcs[:]:
                     if (
@@ -227,7 +251,8 @@ class Game:
                     "position": room_position,
                     "npcs": room_npcs,
                     "doors": [],
-                    "rect": pygame.Rect(*room_position, pixel_width, pixel_height)
+                    "rect": pygame.Rect(*room_position, pixel_width, pixel_height),
+                    "pathfinding_grid": pathfinding_grid
                 }
                 
                 self.level_rooms[floor_level][room_id] = room
