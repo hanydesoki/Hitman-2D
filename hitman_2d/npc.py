@@ -1,4 +1,5 @@
-import random
+# import random
+import math
 from typing import TypedDict, TYPE_CHECKING, Generator
 
 import pygame
@@ -25,6 +26,9 @@ class CharacterData(TypedDict):
     
 class GameCharacter:
     
+    walk_speed: float = 1.0
+    run_speed: float = 2.0
+    
     def __init__(
         self,
         game: "Game",
@@ -50,6 +54,8 @@ class GameCharacter:
         self.is_target = is_target
         self.weapon = weapon
         
+        self.door_transition: bool = False
+        
         self.rect = self.character["top_head"].get_rect(center=(x, y))
         
         self.inconsious: bool = False
@@ -73,32 +79,43 @@ class GameCharacter:
             
             self.game.window.blit(shoulder_surf, self.game.camera.convert_pos(shoulder_rect.topleft))
             self.game.window.blit(top_head_surf, self.game.camera.convert_pos(top_head_rect.topleft))
+            
+            collision_rect = self.rect.copy()
+            collision_rect.topleft = self.game.camera.convert_pos(top_head_rect.topleft)
+            pygame.draw.rect(self.game.window, "green", collision_rect, width=1)
         else:
             pass
         
     def manage_movement(self) -> None:
+        
         self.x += self.vx
-        self.rect.x = self.x
+        self.rect.centerx = self.x
         
         rect = self.check_collision()
+        
+
         if rect is not None:
+            print(rect.left - 1, self.rect.right)
             if self.vx > 0:
                 self.rect.right = rect.left
-            else:
+                self.x = self.rect.centerx
+            elif self.vx < 0:
                 self.rect.left = rect.right
-            self.x = self.rect.centerx
+                self.x = self.rect.centerx
+                
         
         self.y += self.vy
-        self.rect.y = self.y
+        self.rect.centery = self.y
         
         rect = self.check_collision()
         
         if rect is not None:
             if self.vy > 0:
                 self.rect.bottom = rect.top
-            else:
+                self.y = self.rect.centery
+            elif self.vy < 0:
                 self.rect.top = rect.bottom
-            self.y = self.rect.centery
+                self.y = self.rect.centery
                 
         
         
@@ -125,16 +142,43 @@ class GameCharacter:
  
 class NPC(GameCharacter):
     
-    def update(self):
-        self.rotation = (self.rotation + 1) % 360
-        # self.vx = random.random() * 2 - 1
-        # self.vy = random.random() * 2 - 1
-        
+    def update(self):     
         self.manage_movement()
         
         
 class Player(GameCharacter):
-    pass
+    
+    def manage_controls(self) -> None:
+        if self.door_transition: return
+        
+        key_pressed = pygame.key.get_pressed()
+        
+        speed: float = self.walk_speed
+        
+        self.vx = 0
+        self.vy = 0
+        
+        if key_pressed[pygame.K_q]:
+            self.vx = -speed
+        elif key_pressed[pygame.K_d]:
+            self.vx = speed
+                    
+        if key_pressed[pygame.K_z]:
+            self.vy = -speed
+        elif key_pressed[pygame.K_s]:
+            self.vy = speed            
+
+        if not (self.vx == 0 and self.vy == 0):
+            magnitude = math.sqrt(self.vx ** 2 + self.vy ** 2)
+
+            self.vx /= magnitude
+            self.vy /= magnitude
+        
+    def update(self):
+        self.manage_controls()
+        self.manage_movement()
+        
+        
 
 class Civilian(NPC):
     pass

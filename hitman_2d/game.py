@@ -303,11 +303,12 @@ class Game:
         for room in self.level_rooms[self.current_floor].values():
             for npc in room["npcs"]:
                 npc.update()
+        self.player.update()
         
         
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)
-        self.draw_rooms(draw_collisions=False)
+        self.draw_rooms(draw_collisions=True)
         self.draw_npcs()
         
     def draw_npcs(self) -> None:
