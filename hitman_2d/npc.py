@@ -292,6 +292,7 @@ class GameCharacter:
     def current_room(self) -> Room:
         return self.game.level_rooms[self.floor_id][self.room_id]
  
+ 
 class NPC(GameCharacter):
     
     def update(self):
@@ -299,6 +300,11 @@ class NPC(GameCharacter):
         self.manage_movement()
         self.manage_focus_transitions()
         
+    def pass_door(self, door) -> None:
+        self.current_room["npcs"].remove(self)
+        super().pass_door(door)
+        self.current_room["npcs"].append(self)
+               
         
 class Player(GameCharacter):
     
@@ -310,10 +316,15 @@ class Player(GameCharacter):
         #         random.randint(100, 359),
         #         60 * 2,
         #     )
-        
+
         if self.door_transition or self.focus_points: return
         
         key_pressed = pygame.key.get_pressed()
+        
+        if key_pressed[pygame.K_LEFT]:
+            self.rotation = (self.rotation + 6) % 360
+        if key_pressed[pygame.K_RIGHT]:
+            self.rotation = (self.rotation - 6) % 360
         
         speed: float = self.run_speed if key_pressed[pygame.K_LSHIFT] else self.walk_speed
         
@@ -353,7 +364,7 @@ class Player(GameCharacter):
         if pygame.key.get_just_released()[pygame.K_p]:
             self.go_to((600, 900))
             print(self.room_id, self.room_to_traverse)
-        
+    
         
 
 class Civilian(NPC):
