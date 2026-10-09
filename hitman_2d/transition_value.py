@@ -1,6 +1,6 @@
 class TransitionValue:
     
-    def __init__(self, start: float, end: float, number_frames: int):
+    def __init__(self, start: float, end: float, number_frames: int, modulo_value: float = None):
         self.start = start
         self.end = end
         

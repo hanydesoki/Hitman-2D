@@ -280,8 +280,8 @@
             },
             {
                 "position": [
-                    642,
-                    434
+                    835,
+                    253
                 ],
                 "type": "Characters\\NPC2",
                 "disguise": "Disguises\\Guard_2",
@@ -292,18 +292,20 @@
             },
             {
                 "position": [
-                    528,
-                    526
+                    553,
+                    479
                 ],
-                "type": "Characters\\NPC2",
+                "type": "Characters\\NPC1",
                 "disguise": "Disguises\\Guard_2",
-                "rotation": 3,
-                "is_guard": true
+                "is_target": false,
+                "is_guard": false,
+                "is_player": false,
+                "rotation": 0
             },
             {
                 "position": [
-                    915,
-                    463
+                    897,
+                    591
                 ],
                 "type": "Characters\\Agent_47",
                 "disguise": "Disguises\\Agent_47",

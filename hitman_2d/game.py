@@ -36,6 +36,7 @@ class Room(TypedDict):
     rect: pygame.Rect
     pathfinding_grid: list[list[int]]
 
+
 class Game:
     
     def __init__(self, level_path: str, asset_path: str):
@@ -189,9 +190,7 @@ class Game:
                         for i in range(furniture_start_i, furniture_start_i + furniture_tile_width):
                             for j in range(furniture_start_j, furniture_start_j + furniture_tile_height):
                                 pathfinding_grid[j][i] = 0
-                        
-                        
-                                     
+                                 
                 # Place NPC and player
                 for npc_data in all_npcs[:]:
                     if (

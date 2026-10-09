@@ -4,8 +4,11 @@ import random
 from typing import TypedDict, TYPE_CHECKING, Generator
 
 import pygame
+from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
+from pathfinding.core.grid import Grid
 
 from .transition_value import TransitionValue
+from .utilities import find_all_paths
 
 
 if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type hinting
@@ -77,6 +80,8 @@ class GameCharacter:
         self.vy: float = 0
         
         self.focus_points: list[FocusPosition] = []
+        self.current_path: list[tuple[tuple[int, int]], pygame.Rect] = []
+        self.room_to_traverse: list[str] = []
         
         self.metadata: dict = {}
         
@@ -102,7 +107,7 @@ class GameCharacter:
         self.focus_points.append({
             "x": TransitionValue(start_x, target_position[0], number_frames),
             "y": TransitionValue(start_y, target_position[1], number_frames), 
-            "rotation": TransitionValue(start_rotation, target_rotation, number_frames)
+            "rotation": TransitionValue(start_rotation, target_rotation, number_frames, modulo_value=360)
         })
         
         
@@ -239,13 +244,57 @@ class GameCharacter:
         for _, __, furniture_rect in self.current_room["furnitures"]:
             yield furniture_rect
             
+    def go_to(self, position: tuple[int, int]) -> None:
+        
+        target_room: str = None
+        
+        for room_id, room in self.game.level_rooms[self.floor_id].items():
+            if room["rect"].collidepoint(position):
+                target_room = room_id
+                break
+            
+        if target_room is None: return
+        
+        self.room_to_traverse = [self.room_id]
+        
+        if self.room_id != target_room:
+            self.room_to_traverse = find_all_paths(self.game.room_graph_links[self.floor_id], self.room_id, target_room)[0]
+        
+        # print(self.room_to_traverse)
+        
+    def manage_pathfinding(self) -> None:
+        
+        # TODO: Follow the train CJ
+        if self.current_path:
+            pass
+        
+        # if self.next_door is not None:
+        #     self.pass_door(self.next_door)
+        
+        next_door: Door | None = None
+        next_room_id: str | None = None
+        if len(self.room_to_traverse) > 1:
+            next_room_id = self.room_to_traverse[1]
+            for door in self.current_room["doors"]:
+                if next_room_id in door.trigger_rects:
+                    next_door = door
+                    break
+            else:
+                next_room_id = None
+
+
+        # TODO: 
+        if not self.current_path:
+            pass
+        
     @property
     def current_room(self) -> Room:
         return self.game.level_rooms[self.floor_id][self.room_id]
  
 class NPC(GameCharacter):
     
-    def update(self):     
+    def update(self):
+        self.manage_pathfinding()
         self.manage_movement()
         self.manage_focus_transitions()
         
@@ -299,6 +348,10 @@ class Player(GameCharacter):
     def update(self):
         self.manage_controls()
         self.manage_movement()
+        
+        if pygame.key.get_just_released()[pygame.K_p]:
+            self.go_to((600, 900))
+            print(self.room_id, self.room_to_traverse)
         
         
 
