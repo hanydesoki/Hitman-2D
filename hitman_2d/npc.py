@@ -7,7 +7,7 @@ import pygame
 from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
 from pathfinding.core.grid import Grid
 
-from .transition_value import TransitionValue
+from .transition_value import TransitionValue, TransitionRotation
 from .utilities import find_all_paths
 
 
@@ -35,7 +35,7 @@ class CharacterData(TypedDict):
 class FocusPosition(TypedDict):
     x: TransitionValue
     y: TransitionValue
-    rotation: TransitionValue
+    rotation: TransitionRotation
     
     
 class GameCharacter:
@@ -107,8 +107,9 @@ class GameCharacter:
         self.focus_points.append({
             "x": TransitionValue(start_x, target_position[0], number_frames),
             "y": TransitionValue(start_y, target_position[1], number_frames), 
-            "rotation": TransitionValue(start_rotation, target_rotation, number_frames, modulo_value=360)
+            "rotation": TransitionRotation(start_rotation, target_rotation, number_frames)
         })
+
         
         
     def draw(self) -> None:
