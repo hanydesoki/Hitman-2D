@@ -1,5 +1,5 @@
 class TransitionValue:
-    
+    # comm  
     def __init__(self, start: float, end: float, number_frames: int):
         self.start = start
         self.end = end
