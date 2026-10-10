@@ -81,7 +81,7 @@ class GameCharacter:
         self.vy: float = 0
         
         self.focus_points: list[FocusPosition] = []
-        self.current_path: list[pygame.Rect] = []
+        self.current_pathfinding: list[pygame.Rect] = []
         self.room_to_traverse: list[str] = []
         self.target_room_position: tuple[float, float] = None
         
@@ -136,6 +136,7 @@ class GameCharacter:
             pass
         
     def manage_movement(self) -> None:
+        
         
         
         if self.manage_focus_transitions(): return
@@ -208,6 +209,9 @@ class GameCharacter:
         
     def pass_door(self, door: Door) -> None:
         
+        self.vx = 0
+        self.vy = 0
+        
         current_room_trigger = door.trigger_rects[self.room_id]
         target_room_id = [rid for rid in door.trigger_rects.keys() if rid != self.room_id][0]
         target_room_trigger = door.trigger_rects[target_room_id]
@@ -239,6 +243,9 @@ class GameCharacter:
         
         self.room_id = target_room_id
         
+        self.current_pathfinding.clear()
+        self.next_door = None
+        
     def update(self) -> None:
         pass
         
@@ -260,7 +267,7 @@ class GameCharacter:
             
         if target_room is None: return
         
-        self.current_path.clear()
+        self.current_pathfinding.clear()
         
         self.room_to_traverse = [self.room_id]
         
@@ -273,11 +280,35 @@ class GameCharacter:
     def manage_pathfinding(self) -> None:
         
         # TODO: Follow the train CJ
-        if self.current_path:
-            pass
+        if self.current_pathfinding:
+            next_node_rect = self.current_pathfinding[0]
+            dx = next_node_rect.centerx - self.x
+            dy = next_node_rect.centery - self.y
+            
+            norm: float = math.sqrt(dx ** 2 + dy ** 2)
+            
+            self.vx = dx / norm * self.walk_speed
+            self.vy = dy / norm * self.walk_speed
+            
+            self.rotation = math.degrees(math.atan2(-dy, dx) - math.pi / 2)
+            # print(self.rotation)
+            
+            if next_node_rect.collidepoint(self.x, self.y):
+                self.current_pathfinding.pop(0)
+                
+            if len(self.room_to_traverse) == 1 and not self.current_pathfinding:
+                self.room_to_traverse.clear()
+                self.current_pathfinding.clear()
+                self.next_door = None
+                self.target_room_position = None
+ 
+        if self.next_door is not None and self.next_door.trigger_rects[self.room_id].collidepoint(self.x, self.y):
+            self.room_to_traverse.pop(0)
+            self.pass_door(self.next_door)
+            
 
-        # TODO: Create pathfinding between npc and next door or end 
-        if not self.current_path and self.room_to_traverse and not self.focus_points:
+        # Create pathfinding between npc and next door or end 
+        if not self.current_pathfinding and self.room_to_traverse and not self.focus_points:
             if len(self.room_to_traverse) > 1:
                 next_room_id = self.room_to_traverse[1]
                 for door in self.current_room["doors"]:
@@ -335,7 +366,7 @@ class GameCharacter:
         pathfinding_list: list[GridNode]
         
         
-        self.current_path.clear()
+        self.current_pathfinding.clear()
         
         node_size: int = int(TILE_SIZE / 5)
         
@@ -352,9 +383,9 @@ class GameCharacter:
                 node_size
             )
             
-            self.current_path.append(node_rect)
+            self.current_pathfinding.append(node_rect)
             
-        # print(self.current_path)
+        # print(self.current_pathfinding)
         
     @property
     def current_room(self) -> Room:
@@ -384,6 +415,8 @@ class Player(GameCharacter):
         #         random.randint(100, 359),
         #         60 * 2,
         #     )
+        
+        if self.current_pathfinding: return
 
         if self.door_transition or self.focus_points: return
         
@@ -437,7 +470,7 @@ class Player(GameCharacter):
     def draw(self) -> None:
         super().draw()
 
-        for node_rect in self.current_path:
+        for node_rect in self.current_pathfinding:
             rect = node_rect.copy()
             pygame.draw.rect(self.game.window, "purple", rect)
 
