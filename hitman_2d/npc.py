@@ -5,10 +5,11 @@ from typing import TypedDict, TYPE_CHECKING, Generator
 
 import pygame
 from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
-from pathfinding.core.grid import Grid
+from pathfinding.core.grid import Grid, GridNode
 
 from .transition_value import TransitionValue, TransitionRotation
 from .utilities import find_all_paths
+from .settings import TILE_SIZE
 
 
 if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type hinting
@@ -80,8 +81,11 @@ class GameCharacter:
         self.vy: float = 0
         
         self.focus_points: list[FocusPosition] = []
-        self.current_path: list[tuple[tuple[int, int]], pygame.Rect] = []
+        self.current_path: list[pygame.Rect] = []
         self.room_to_traverse: list[str] = []
+        self.target_room_position: tuple[float, float] = None
+        
+        self.next_door: Door | None = None
         
         self.metadata: dict = {}
         
@@ -256,11 +260,14 @@ class GameCharacter:
             
         if target_room is None: return
         
+        self.current_path.clear()
+        
         self.room_to_traverse = [self.room_id]
         
         if self.room_id != target_room:
             self.room_to_traverse = find_all_paths(self.game.room_graph_links[self.floor_id], self.room_id, target_room)[0]
         
+        self.target_room_position = position
         # print(self.room_to_traverse)
         
     def manage_pathfinding(self) -> None:
@@ -268,25 +275,86 @@ class GameCharacter:
         # TODO: Follow the train CJ
         if self.current_path:
             pass
-        
-        # if self.next_door is not None:
-        #     self.pass_door(self.next_door)
-        
-        next_door: Door | None = None
-        next_room_id: str | None = None
-        if len(self.room_to_traverse) > 1:
-            next_room_id = self.room_to_traverse[1]
-            for door in self.current_room["doors"]:
-                if next_room_id in door.trigger_rects:
-                    next_door = door
-                    break
-            else:
-                next_room_id = None
 
-
-        # TODO: 
-        if not self.current_path:
-            pass
+        # TODO: Create pathfinding between npc and next door or end 
+        if not self.current_path and self.room_to_traverse and not self.focus_points:
+            if len(self.room_to_traverse) > 1:
+                next_room_id = self.room_to_traverse[1]
+                for door in self.current_room["doors"]:
+                    if next_room_id in door.trigger_rects:
+                        self.next_door = door
+                        break
+                    
+                self.create_pathfinding(
+                    from_position=(self.x, self.y),
+                    to_position=self.next_door.trigger_rects[self.room_id].center
+                )
+            elif len(self.room_to_traverse) == 1:
+                self.create_pathfinding(
+                    from_position=(self.x, self.y),
+                    to_position=self.target_room_position
+                )
+            
+    def create_pathfinding(self, from_position: tuple[float, float], to_position: tuple[float, float]) -> None:
+        
+        start: tuple[int, int] = (
+            int(from_position[0] / TILE_SIZE) - self.current_room["indexes"][0],
+            int(from_position[1] / TILE_SIZE) - self.current_room["indexes"][1],
+        )
+        
+        end: tuple[int, int] = (
+            int(to_position[0] / TILE_SIZE) - self.current_room["indexes"][0],
+            int(to_position[1] / TILE_SIZE) - self.current_room["indexes"][1],
+        )
+        
+        # Check if in bound and accessible
+        if (
+            (
+                not (0 <= start[0] < self.current_room["width"])
+                or
+                not (0 <= start[1] < self.current_room["height"])
+                or
+                not (0 <= end[0] < self.current_room["width"])
+                or
+                not (0 <= end[1] < self.current_room["height"])
+            )
+            and
+            (
+                self.current_room["pathfinding_grid"][start[0]][start[1]] == 0
+                or
+                self.current_room["pathfinding_grid"][end[0]][end[1]] == 0
+            ) 
+            
+        ):
+            return
+        
+        a_start_finder = AStarFinder(diagonal_movement=DiagonalMovement.only_when_no_obstacle)   
+        grid = Grid(matrix=self.current_room["pathfinding_grid"])
+        
+        pathfinding_list, _ = a_start_finder.find_path(grid.node(*start), grid.node(*end), grid)
+        pathfinding_list: list[GridNode]
+        
+        
+        self.current_path.clear()
+        
+        node_size: int = int(TILE_SIZE / 5)
+        
+        for grid_node in pathfinding_list:
+            node_position: tuple[float, float] = (
+                (grid_node.x + self.current_room["indexes"][0]) * TILE_SIZE + TILE_SIZE / 2,
+                (grid_node.y + self.current_room["indexes"][1]) * TILE_SIZE + TILE_SIZE / 2,
+            )
+            
+            node_rect = pygame.Rect(
+                node_position[0] - node_size / 2,
+                node_position[1] - node_size / 2,
+                node_size,
+                node_size
+            )
+            
+            self.current_path.append(node_rect)
+            
+        # print(self.current_path)
         
     @property
     def current_room(self) -> Room:
@@ -304,7 +372,7 @@ class NPC(GameCharacter):
         self.current_room["npcs"].remove(self)
         super().pass_door(door)
         self.current_room["npcs"].append(self)
-               
+        
         
 class Player(GameCharacter):
     
@@ -359,11 +427,20 @@ class Player(GameCharacter):
         
     def update(self):
         self.manage_controls()
+        self.manage_pathfinding()
         self.manage_movement()
         
         if pygame.key.get_just_released()[pygame.K_p]:
             self.go_to((600, 900))
-            print(self.room_id, self.room_to_traverse)
+            # print(self.room_id, self.room_to_traverse)
+            
+    def draw(self) -> None:
+        super().draw()
+
+        for node_rect in self.current_path:
+            rect = node_rect.copy()
+            pygame.draw.rect(self.game.window, "purple", rect)
+
     
         
 
