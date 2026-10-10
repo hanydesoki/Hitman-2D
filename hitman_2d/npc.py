@@ -416,6 +416,10 @@ class Player(GameCharacter):
         #         60 * 2,
         #     )
         
+        if pygame.mouse.get_just_released()[0]:
+            mouse_pos = pygame.mouse.get_pos()
+            self.go_to(mouse_pos)
+        
         if self.current_pathfinding: return
 
         if self.door_transition or self.focus_points: return
@@ -463,9 +467,6 @@ class Player(GameCharacter):
         self.manage_pathfinding()
         self.manage_movement()
         
-        if pygame.key.get_just_released()[pygame.K_p]:
-            self.go_to((600, 900))
-            # print(self.room_id, self.room_to_traverse)
             
     def draw(self) -> None:
         super().draw()
