@@ -279,9 +279,10 @@ class GameCharacter:
         
     def manage_pathfinding(self) -> None:
         
-        # TODO: Follow the train CJ
+        # Follow the train CJ
         if self.current_pathfinding:
             next_node_rect = self.current_pathfinding[0]
+            
             dx = next_node_rect.centerx - self.x
             dy = next_node_rect.centery - self.y
             

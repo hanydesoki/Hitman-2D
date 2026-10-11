@@ -63,6 +63,13 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "path": ["Furnitures", "Containers"]
         }
     },
+    "food": {
+        "interactible_food": {
+            "type": "assets",
+            "label": "Food",
+            "path": ["Food"]
+        }
+    },
     "door": {
         "door_assets": {
             "type": "assets",
@@ -147,9 +154,17 @@ class NPCData(TypedDict):
     is_player: Optional[bool]
     is_guard: Optional[bool]
     
+class FoodData(TypedDict):
+    indexes: list[int, int]
+    asset: str
+    rotation: int
+    trigger_tile: list[int, int]
+    
 
 class LevelData(TypedDict):
     rooms: dict[str, dict[str, RoomData]]
     doors: dict[str, list[DoorData]]
     furnitures: dict[str, list[FurnitureData]]
     npc: dict[str, list[NPCData]]
+    food: dict[str, list[FoodData]]
+    

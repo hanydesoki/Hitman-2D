@@ -23,6 +23,13 @@ from .checkbox import Checkbox
 
 class LevelCreator:
     
+    neighbors_tile_food_rotation: dict[int, tuple[int, int]] = {
+        0: (-1, 0),
+        1: (0, 1),
+        2: (1, 0),
+        3: (0, -1)
+    }
+    
     def __init__(self, level_path: str, asset_path: str):
         pygame.init()
         
@@ -63,6 +70,7 @@ class LevelCreator:
                 "door": "Door",
                 # "tiles": "Tiles",
                 "furniture": "Furniture",
+                "food": "Food",
                 # "player": "Player",
                 "npc": "NPC",
                 "npc_path": "NPC Path",
@@ -121,6 +129,11 @@ class LevelCreator:
         self.is_placing_npc: bool = False
         self.selected_npc_type: str = None
         self.selected_npc_disguise: str = None
+        
+        # Food menu states
+        self.selected_food: FoodData = None
+        self.is_placing_food: bool = False
+        self.selected_food_asset: str = None
         
         self.json_editor: JSONEditor | None = JSONEditor(
             {
@@ -327,6 +340,12 @@ class LevelCreator:
             if self.selected_furniture:
                 debug_dict = debug_dict | {"Selected Furniture " + k: v for k, v in self.selected_furniture.items()}
                 
+        elif self.current_mode == "food":
+            debug_dict["Selected Food Asset"] = self.selected_food_asset
+            debug_dict["Is Placing Food"] = self.is_placing_food
+            if self.selected_food:
+                debug_dict = debug_dict | {"Selected Food " + k: v for k, v in self.selected_food.items()}
+                
         elif self.current_mode == "door":
             debug_dict["Selected Door Asset"] = self.selected_door_asset
             debug_dict["Is placing door"] = self.is_placing_door
@@ -360,6 +379,7 @@ class LevelCreator:
         self.draw_grid()
         self.draw_rooms()
         self.draw_furnitures()
+        self.draw_foods()
         self.draw_doors()
         self.draw_npcs()
         self.draw_debug_menu()
@@ -433,6 +453,45 @@ class LevelCreator:
                         npc["position"][1] - preview_surf.get_height() // 2
                     ))
                 )
+            )
+            
+    def draw_foods(self) -> None:
+            
+        all_foods: list[FoodData] = get_from_dict(self.level_data, ["food", str(self.current_floor)], [])[:]
+        is_placing_food: bool = self.current_mode == "food" and self.is_placing_food and self.selected_food
+        
+        if is_placing_food:
+            all_foods.append(self.selected_food)
+            
+        for i, food in enumerate(all_foods):
+            
+            preview_surf: pygame.Surface = pygame.transform.rotate(
+                get_from_dict(self.assets, food["asset"].split(os.path.sep), None),
+                # food["rotation"] * 90
+                0
+            )
+            
+            preview_surf.set_colorkey("white")
+            
+            
+            if is_placing_food and i == (len(all_foods) - 1):
+                preview_surf.set_alpha(180)
+            
+            self.window.blit(
+                preview_surf,
+                self.convert_game_pos(
+                    self.camera.convert_pos((
+                        food["indexes"][0] * TILE_SIZE,
+                        food["indexes"][1] * TILE_SIZE
+                    ))
+                )
+            )
+            
+            pygame.draw.rect(
+                self.window,
+                "purple",
+                (*self.convert_game_pos(self.camera.convert_pos((food["trigger_tile"][0] * TILE_SIZE, food["trigger_tile"][1] * TILE_SIZE))), TILE_SIZE, TILE_SIZE),
+                width=2
             )
     
     def draw_furnitures(self) -> None:
@@ -578,9 +637,119 @@ class LevelCreator:
             self.manage_door_menu(all_events)
         elif self.current_mode == "npc":
             self.manage_npc_menu(all_events)
+        elif self.current_mode == "food":
+            self.manage_food_menu(all_events)
             
         if self.json_editor is not None:
             self.json_editor.update(all_events)
+            
+    def manage_food_menu(self, all_events: list[pygame.Event]) -> None:
+        key_pressed = pygame.key.get_pressed()
+        left_clicked: bool = False
+        right_clicked: bool = False
+        scroll_y: int = 0
+        mouse_pressed = pygame.mouse.get_pressed()
+                    
+        ctrl_pressed = key_pressed[pygame.K_LCTRL]
+        
+        mouse_indexes = self.current_mouse_indexes()
+        screen_mouse_pos = self.screen_mouse_pos()
+        
+        for event in all_events:
+            if event.type == pygame.MOUSEWHEEL:
+                attr_name: str = "room_width" if ctrl_pressed else "room_height"
+                setattr(
+                    self,
+                    attr_name,
+                    max(3, getattr(self, attr_name, 0) + event.y)
+                )
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[0]:
+                left_clicked = True
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
+                right_clicked = True
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
+                
+        # Asset selection    
+        for selectable_asset in (w for w in self.menu_layout["food"] if isinstance(w, SelectableAsset)):
+            if selectable_asset.is_clicked() or (self.selected_food_asset is None):
+                self.selected_food_asset = selectable_asset.key
+                
+                self.selected_food = {
+                    "indexes": [0, 0],
+                    "asset": self.selected_food_asset,
+                    "rotation": 0,
+                    "trigger_tile": [-1, 0]
+                }
+                
+                self.is_placing_food = True
+
+            
+        has_selected_food: bool = False
+        # Food selection
+        if left_clicked and not self.is_placing_food and screen_mouse_pos is not None:
+            all_foods: list[FoodData] = get_from_dict(self.level_data, ["food", str(self.current_floor)], [])
+            for food_data in all_foods:
+                surf: pygame.Surface = pygame.transform.rotate(
+                        get_from_dict(
+                        self.assets, 
+                        food_data["asset"].split(os.path.sep), 
+                        pygame.Surface((TILE_SIZE, TILE_SIZE))
+                    ),
+                    food_data["rotation"] * 90
+                )
+
+                rect = surf.get_rect(topleft=(food_data["indexes"][0] * TILE_SIZE, food_data["indexes"][1] * TILE_SIZE))
+                # print(rect, screen_mouse_pos, rect.collidepoint(screen_mouse_pos))
+                if rect.collidepoint(screen_mouse_pos):
+                    all_foods.remove(food_data)
+                    self.selected_food = food_data
+                    self.selected_food_asset = food_data["asset"]
+                    self.is_placing_food = True
+                    has_selected_food = True
+                    break
+                
+        
+        # Controls while placing a furniture 
+        if self.is_placing_food and self.selected_food is not None:
+            if scroll_y:
+                self.selected_food["rotation"] = (self.selected_food["rotation"] - scroll_y) % 4
+            
+            if mouse_indexes is not None:
+                self.selected_food["indexes"] = mouse_indexes
+                self.selected_food["trigger_tile"] = [
+                    mouse_indexes[0] + self.neighbors_tile_food_rotation[self.selected_food["rotation"]][0], 
+                    mouse_indexes[1] + self.neighbors_tile_food_rotation[self.selected_food["rotation"]][1]
+                ]
+                
+            self.selected_food["asset"] = self.selected_food_asset
+            
+            if not has_selected_food and left_clicked and mouse_indexes is not None:
+                # Check valid postition
+                if get_from_dict(
+                    self.level_data,
+                    ["food", str(self.current_floor)],
+                    None
+                ) is None:
+                    set_to_dict(
+                        self.level_data,
+                        ["food", str(self.current_floor)],
+                        []
+                    )
+                    
+                get_from_dict(
+                    self.level_data,
+                    ["food", str(self.current_floor)],
+                    []
+                ).append(self.selected_food)
+                
+                self.selected_food = None
+                self.is_placing_food = False
+
+            if right_clicked:
+                self.selected_food = None
+                self.is_placing_food = False
             
     def manage_room_menu(self, all_events: list[pygame.Event]) -> None:
         
@@ -732,7 +901,7 @@ class LevelCreator:
     def delete_room(self, room_id: str) -> None:
         for rooms in self.level_data["rooms"].values():
             if room_id in rooms:
-                # TODO: Delete associated elements (doors, furnitures, npcs, npc paths)
+                # Delete associated elements (doors, furnitures, npcs, npc paths)
                 del rooms[room_id]
                 
     
@@ -781,7 +950,7 @@ class LevelCreator:
         has_selected_furniture: bool = False
         # Furniture selection
         if left_clicked and not self.is_placing_furniture and screen_mouse_pos is not None:
-            all_furnitures: list[dict] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])
+            all_furnitures: list[FurnitureData] = get_from_dict(self.level_data, ["furnitures", str(self.current_floor)], [])
             for furniture in all_furnitures:
                 surf: pygame.Surface = pygame.transform.rotate(
                         get_from_dict(
@@ -814,7 +983,7 @@ class LevelCreator:
             self.selected_furniture["asset"] = self.selected_furniture_asset
             
             if not has_selected_furniture and left_clicked and mouse_indexes is not None:
-                # TODO: Check valid postition
+                # Check valid postition
                 if get_from_dict(
                     self.level_data,
                     ["furnitures", str(self.current_floor)],
