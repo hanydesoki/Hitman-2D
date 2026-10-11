@@ -15,6 +15,7 @@ from .settings import *
 from .camera import Camera
 from .npc import NPC, Player, Guard, Civilian, DisguiseData, CharacterData
 from .door import Door, DoorSurfaces
+from .food import Food
 
 
 class Room(TypedDict):
@@ -35,6 +36,7 @@ class Room(TypedDict):
     doors: list[Door]
     rect: pygame.Rect
     pathfinding_grid: list[list[int]]
+    foods: list[Food]
 
 
 class Game:
@@ -81,11 +83,13 @@ class Game:
             all_furnitures: list[FurnitureData] = get_from_dict(self.level_data, ["furnitures", floor_level], [])[:]
             all_npcs: list[NPCData] = get_from_dict(self.level_data, ["npc", floor_level], [])[:]
             all_doors: list[DoorData] = get_from_dict(self.level_data, ["doors", floor_level], [])[:]
+            all_foods: list[FoodData] = get_from_dict(self.level_data, ["food", floor_level], [])[:]
             
             for room_id, room_data in floor_data.items():
                 room_furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]] = []
                 room_npcs: list[NPC] = []
                 room_walls: list[pygame.Rect] = []
+                room_foods: list[Food] = []
                 
                 # Room Surface
                 pixel_width: int = room_data["width"] * TILE_SIZE
@@ -190,6 +194,33 @@ class Game:
                         for i in range(furniture_start_i, furniture_start_i + furniture_tile_width):
                             for j in range(furniture_start_j, furniture_start_j + furniture_tile_height):
                                 pathfinding_grid[j][i] = 0
+                    
+                # Place Food
+                for food_data in all_foods[:]:
+                    if (
+                        (room_data["indexes"][0] <= food_data["indexes"][0] <= (food_data["indexes"][0] + room_data["width"]))
+                        and  
+                        (room_data["indexes"][1] <= food_data["indexes"][1] <= ((food_data["indexes"][1] + room_data["height"])))
+                    ):
+                        food_surface: pygame.Surface = get_from_dict(self.assets, food_data["asset"].split(os.path.sep), None)
+                        food_surface.set_colorkey("white")
+                        
+                        food_trigger_rect = pygame.Rect(
+                            food_data["trigger_tile"][0] * TILE_SIZE,
+                            food_data["trigger_tile"][0] * TILE_SIZE,
+                            TILE_SIZE,
+                            TILE_SIZE
+                        )
+                        
+                        new_food = Food(
+                            self,
+                            int(food_data["indexes"][0] * TILE_SIZE + TILE_SIZE // 2),
+                            int(food_data["indexes"][1] * TILE_SIZE + TILE_SIZE // 2),
+                            surface=food_surface,
+                            trigger_rect=food_trigger_rect
+                        )
+                        
+                        room_foods.append(new_food)
                                  
                 # Place NPC and player
                 for npc_data in all_npcs[:]:
@@ -250,6 +281,7 @@ class Game:
                     "position": room_position,
                     "npcs": room_npcs,
                     "doors": [],
+                    "foods": room_foods,
                     "rect": pygame.Rect(*room_position, pixel_width, pixel_height),
                     "pathfinding_grid": pathfinding_grid
                 }
@@ -329,7 +361,6 @@ class Game:
                 self.room_graph_links[floor_level][room_1_id].append(room_2_id)
                 self.room_graph_links[floor_level][room_2_id].append(room_1_id)
                 
-            # TODO: Place Food
         
         self.current_floor = "0"
         
@@ -360,8 +391,14 @@ class Game:
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)
         self.draw_rooms(draw_collisions=True)
+        self.draw_foods()
         self.draw_doors()
         self.draw_npcs()
+        
+    def draw_foods(self) -> None:
+        for room in self.level_rooms[self.current_floor].values():
+            for food in room["foods"]:
+                food.draw()
         
     def draw_doors(self) -> None:
         floor_doors = self.doors[self.current_floor]
