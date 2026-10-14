@@ -207,7 +207,7 @@ class Game:
                         
                         food_trigger_rect = pygame.Rect(
                             food_data["trigger_tile"][0] * TILE_SIZE,
-                            food_data["trigger_tile"][0] * TILE_SIZE,
+                            food_data["trigger_tile"][1] * TILE_SIZE,
                             TILE_SIZE,
                             TILE_SIZE
                         )
@@ -251,6 +251,21 @@ class Game:
                         
                         NPCClass = Player if is_player else (Guard if is_guard else Civilian)
                         
+                        # Create NPC paths
+                        npc_paths: list[NPCPathData] = npc_data.get("path", [])
+                        
+                        for path in npc_paths:
+                            # Check food interaction
+                            if path["action_type"] == NPCActionType.food_interaction:
+                                for food in room_foods:
+                                    if food.rect.collidepoint(path["position"]):
+                                        path["position"] = food.trigger_rect.center
+                                        path["metadata"] = {
+                                            "food_object": food
+                                        }
+                                        break
+                                    
+                        
                         new_npc = NPCClass(
                             self,
                             npc_data["position"][0],
@@ -260,7 +275,8 @@ class Game:
                             character=character_data,
                             is_target=is_target,
                             room_id=room_id,
-                            floor_id=floor_level
+                            floor_id=floor_level,
+                            paths=npc_paths
                         )
                         
                         if is_player and self.player is None:
@@ -360,6 +376,8 @@ class Game:
                     
                 self.room_graph_links[floor_level][room_1_id].append(room_2_id)
                 self.room_graph_links[floor_level][room_2_id].append(room_1_id)
+            
+            all_npcs: list[NPCData] = get_from_dict(self.level_data, ["npc", floor_level], [])[:]
                 
         
         self.current_floor = "0"
@@ -390,7 +408,7 @@ class Game:
         
     def draw(self) -> None:
         self.window.fill(BACKGROUND_COLOR)
-        self.draw_rooms(draw_collisions=True)
+        self.draw_rooms(draw_collisions=False)
         self.draw_foods()
         self.draw_doors()
         self.draw_npcs()

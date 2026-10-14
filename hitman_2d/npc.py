@@ -17,6 +17,7 @@ if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type h
     from .weapon import Weapon
     from .game import Room
     from .door import Door
+    from .settings import NPCPathData
 
 
 class DisguiseData(TypedDict):
@@ -55,6 +56,7 @@ class GameCharacter:
         room_id: str,
         floor_id: str,
         is_target: bool = False,
+        paths: list[NPCPathData] = None,
         
         weapon: "Weapon" | None = None
     ):  
@@ -67,6 +69,8 @@ class GameCharacter:
         self.room_id = room_id
         self.floor_id = floor_id
         self.is_target = is_target
+        self.original_path: list[NPCPathData] = paths or []
+        self.paths: list[NPCPathData] = self.original_path[:]
         self.weapon = weapon
         
         self.door_transition: bool = False
@@ -76,6 +80,10 @@ class GameCharacter:
         self.inconsious: bool = False
         self.alive: bool = True
         self.sleeping: bool = False
+        
+        self.wait_time: int = 0
+        self.is_waiting: bool = False
+        self.finished_current_path: bool = False
         
         self.vx: float = 0
         self.vy: float = 0
@@ -129,15 +137,13 @@ class GameCharacter:
             self.game.window.blit(shoulder_surf, self.game.camera.convert_pos(shoulder_rect.topleft))
             self.game.window.blit(top_head_surf, self.game.camera.convert_pos(top_head_rect.topleft))
             
-            collision_rect = self.rect.copy()
-            collision_rect.topleft = self.game.camera.convert_pos(top_head_rect.topleft)
-            pygame.draw.rect(self.game.window, "green", collision_rect, width=1)
+            # collision_rect = self.rect.copy()
+            # collision_rect.topleft = self.game.camera.convert_pos(top_head_rect.topleft)
+            # pygame.draw.rect(self.game.window, "green", collision_rect, width=1)
         else:
             pass
         
     def manage_movement(self) -> None:
-        
-        
         
         if self.manage_focus_transitions(): return
         
@@ -264,7 +270,7 @@ class GameCharacter:
             if room["rect"].collidepoint(position):
                 target_room = room_id
                 break
-            
+        
         if target_room is None: return
         
         self.current_pathfinding.clear()
@@ -277,6 +283,31 @@ class GameCharacter:
         self.target_room_position = position
         # print(self.room_to_traverse)
         
+    def manage_npc_behaviour(self) -> None:
+        
+        if not self.alive: return
+        
+        if not self.paths and self.original_path:
+            self.paths.extend(self.original_path)
+            # print("loop_back")
+        
+        if not self.paths: return
+        
+        if not self.is_waiting and self.paths and not self.current_pathfinding:
+            self.go_to(position=self.paths[0]["position"])
+            
+        # Manage waiting
+        if self.is_waiting:
+            self.wait_time += 1
+            if self.wait_time >= self.paths[0]["time"]:
+                self.paths.pop(0)
+                # print("finish waiting", self.wait_time, self.paths)
+                self.wait_time = 0
+                self.is_waiting = False
+                
+                
+        self.finished_current_path = False
+            
     def manage_pathfinding(self) -> None:
         
         # Follow the train CJ
@@ -296,12 +327,16 @@ class GameCharacter:
             
             if next_node_rect.collidepoint(self.x, self.y):
                 self.current_pathfinding.pop(0)
-                
+            
+            # Finished path
             if len(self.room_to_traverse) == 1 and not self.current_pathfinding:
                 self.room_to_traverse.clear()
                 self.current_pathfinding.clear()
                 self.next_door = None
                 self.target_room_position = None
+                self.is_waiting = True
+                self.vx = 0
+                self.vy = 0
  
         if self.next_door is not None and self.next_door.trigger_rects[self.room_id].collidepoint(self.x, self.y):
             self.room_to_traverse.pop(0)
@@ -395,9 +430,10 @@ class GameCharacter:
 class NPC(GameCharacter):
     
     def update(self):
+        self.manage_npc_behaviour()
         self.manage_pathfinding()
         self.manage_movement()
-        self.manage_focus_transitions()
+        # self.manage_focus_transitions()
         
     def pass_door(self, door) -> None:
         self.current_room["npcs"].remove(self)
@@ -471,9 +507,9 @@ class Player(GameCharacter):
     def draw(self) -> None:
         super().draw()
 
-        for node_rect in self.current_pathfinding:
-            rect = node_rect.copy()
-            pygame.draw.rect(self.game.window, "purple", rect)
+        # for node_rect in self.current_pathfinding:
+        #     rect = node_rect.copy()
+        #     pygame.draw.rect(self.game.window, "purple", rect)
 
     
         

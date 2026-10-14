@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, NotRequired
 from enum import Enum
 
 SCREEN_SIZE = (0, 0)
@@ -168,9 +168,9 @@ class NPCData(TypedDict):
     type: str
     disguise: str
     rotation: int
-    is_target: Optional[bool]
-    is_player: Optional[bool]
-    is_guard: Optional[bool]
+    is_target: NotRequired[bool]
+    is_player: NotRequired[bool]
+    is_guard: NotRequired[bool]
     path: list[NPCPathData]
     
 class FoodData(TypedDict):
@@ -191,5 +191,5 @@ class NPCPathData(TypedDict):
     time: int
     position: list[int, int]
     rotation: int
-    
+    metadata: NotRequired[dict]
     

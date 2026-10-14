@@ -68,12 +68,12 @@ class Door:
             rect = trigger_rect.copy()
             rect.topleft =  self.game.camera.convert_pos(rect.topleft)
             
-            pygame.draw.rect(self.game.window, "blue", rect, width=1)
+            # pygame.draw.rect(self.game.window, "blue", rect, width=1)
             
-            self.game.window.blit(
-                pygame.font.SysFont("Arial", 20).render(room_id, True, "blue"),
-                trigger_rect.center
-            )
+            # self.game.window.blit(
+            #     pygame.font.SysFont("Arial", 20).render(room_id, True, "blue"),
+            #     trigger_rect.center
+            # )
             
             
         
