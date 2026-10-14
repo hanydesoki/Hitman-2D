@@ -17,9 +17,10 @@ if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type h
     from .weapon import Weapon
     from .game import Room
     from .door import Door
-    from .settings import NPCPathData
+    from .food import Food
 
-
+from .settings import NPCPathData, NPCActionType
+    
 class DisguiseData(TypedDict):
     name: str
     arm: pygame.Surface
@@ -252,6 +253,7 @@ class GameCharacter:
         self.current_pathfinding.clear()
         self.next_door = None
         
+        
     def update(self) -> None:
         pass
         
@@ -305,6 +307,25 @@ class GameCharacter:
                 self.wait_time = 0
                 self.is_waiting = False
                 
+        # Eat food
+        if self.current_pathfinding and self.paths and (self.paths[0]["action_type"] == NPCActionType.food_interaction):
+            
+            food: Food = self.paths[0].get("metadata", {}).get("food", None)
+
+            if food is not None and food.trigger_rect.collidepoint((self.x, self.y)):
+                if (food.trigger_rect.x != food.rect.x):
+                    rotation = -90 if (food.trigger_rect.x < food.rect.x) else 90
+                else:
+                    rotation = 180 if (food.trigger_rect.y < food.rect.y) else -180   
+                    
+                self.focus_position(food.trigger_rect.center, rotation, 30)
+                self.eat(food)
+                
+                self.current_pathfinding.clear()
+                self.room_to_traverse.clear()
+                self.target_room_position = None
+                self.is_waiting = True
+                    
                 
         self.finished_current_path = False
             
@@ -360,6 +381,9 @@ class GameCharacter:
                     from_position=(self.x, self.y),
                     to_position=self.target_room_position
                 )
+                
+    def eat(self, food: Food) -> None:
+        pass
             
     def create_pathfinding(self, from_position: tuple[float, float], to_position: tuple[float, float]) -> None:
         

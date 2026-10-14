@@ -261,7 +261,7 @@ class Game:
                                     if food.rect.collidepoint(path["position"]):
                                         path["position"] = food.trigger_rect.center
                                         path["metadata"] = {
-                                            "food_object": food
+                                            "food": food
                                         }
                                         break
                                     
