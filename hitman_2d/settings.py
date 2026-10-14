@@ -1,4 +1,5 @@
 from typing import TypedDict, Optional
+from enum import Enum
 
 SCREEN_SIZE = (0, 0)
 # SCREEN_SIZE = (800, 600)
@@ -116,9 +117,26 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "default_value": False
         }  
     },
-    "npc_path": {},
+    "npc_path": {
+        "add_path": {
+            "type": "button",
+            "label": "+ Add Path",
+            "text": ""
+        },
+        "delete_path": {
+            "type": "button",
+            "label": "- Delete Path",
+            "text": ""
+        }
+    },
     "exit": {}
 }
+
+
+class NPCActionType(int, Enum):
+    wait = 0
+    food_interaction = 1
+    smoke = 2
 
 
 class RoomData(TypedDict):
@@ -153,13 +171,13 @@ class NPCData(TypedDict):
     is_target: Optional[bool]
     is_player: Optional[bool]
     is_guard: Optional[bool]
+    path: list[NPCPathData]
     
 class FoodData(TypedDict):
     indexes: list[int, int]
     asset: str
     rotation: int
     trigger_tile: list[int, int]
-    
 
 class LevelData(TypedDict):
     rooms: dict[str, dict[str, RoomData]]
@@ -167,4 +185,11 @@ class LevelData(TypedDict):
     furnitures: dict[str, list[FurnitureData]]
     npc: dict[str, list[NPCData]]
     food: dict[str, list[FoodData]]
+    
+class NPCPathData(TypedDict):
+    action_type: NPCActionType
+    time: int
+    position: list[int, int]
+    rotation: int
+    
     

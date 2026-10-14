@@ -307,7 +307,6 @@ class GameCharacter:
             self.room_to_traverse.pop(0)
             self.pass_door(self.next_door)
             
-
         # Create pathfinding between npc and next door or end 
         if not self.current_pathfinding and self.room_to_traverse and not self.focus_points:
             if len(self.room_to_traverse) > 1:

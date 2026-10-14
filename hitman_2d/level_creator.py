@@ -30,6 +30,12 @@ class LevelCreator:
         3: (0, -1)
     }
     
+    npc_path_action_labels: dict[NPCActionType, str] = {
+        NPCActionType.wait: "Wait",
+        NPCActionType.smoke: "Smoke",
+        NPCActionType.food_interaction: "Food Interaction",
+    }
+    
     def __init__(self, level_path: str, asset_path: str):
         pygame.init()
         
@@ -52,7 +58,8 @@ class LevelCreator:
         self.camera: Camera = Camera()
         
         self.fonts: dict[str, pygame.Font] = {
-            "debug": pygame.font.SysFont("Arial", 25)
+            "debug": pygame.font.SysFont("Arial", 25),
+            "npc_path": pygame.font.SysFont("Arial", 20)
         }
         
         # Menu side menu layout
@@ -129,6 +136,11 @@ class LevelCreator:
         self.is_placing_npc: bool = False
         self.selected_npc_type: str = None
         self.selected_npc_disguise: str = None
+        
+        # NPC path menu states
+        self.selected_pathed_npc: NPCData = None
+        self.selected_npc_path: NPCPathData = None
+        self.is_placing_npc_path: bool = False
         
         # Food menu states
         self.selected_food: FoodData = None
@@ -351,12 +363,16 @@ class LevelCreator:
             debug_dict["Is placing door"] = self.is_placing_door
             if self.selected_door:
                 debug_dict = debug_dict | {"Selected Door " + k: v for k, v in self.selected_door.items()}
-        elif self.current_mode == "npc":
-            # debug_dict["Selected NPC Type"] = self.selected_npc_type
-            # debug_dict["Selected NPC Disguise"] = self.selected_npc_disguise
+        elif self.current_mode in "npc":
             debug_dict["Is placing NPC"] = self.is_placing_npc
             if self.selected_npc is not None:
                 debug_dict = debug_dict | {"Selected NPC " + k: v for k, v in self.selected_npc.items()}
+        elif self.current_mode == "npc_path":
+            debug_dict["Is placing NPC Path"] = self.is_placing_npc_path
+            if self.selected_pathed_npc is not None:
+                debug_dict = debug_dict | {"Selected NPC " + k: v for k, v in self.selected_pathed_npc.items() if k != "path"}
+            if self.selected_npc_path is not None:
+                debug_dict = debug_dict | {"Selected NPC Path " + k: v for k, v in self.selected_npc_path.items()}
         
         top_draw: int = 0
         for label, value in debug_dict.items():
@@ -382,10 +398,49 @@ class LevelCreator:
         self.draw_foods()
         self.draw_doors()
         self.draw_npcs()
+        self.draw_npc_paths()
         self.draw_debug_menu()
         self.draw_sidebar_menu()
         
         self.menu_control.draw()
+        
+    def draw_npc_paths(self) -> None:
+        if self.current_mode != "npc_path": return
+        
+        # screen_mouse_pos = self.screen_mouse_pos()
+        current_mouse_indexes = self.current_mouse_indexes()
+        
+        if self.selected_pathed_npc is not None:
+            npc_paths: list[NPCPathData] = self.selected_pathed_npc.get("path", [])[:]
+            
+            if self.is_placing_npc_path and self.selected_npc_path not in npc_paths:
+                npc_paths.append(self.selected_npc_path)
+            
+            for path_index, path in enumerate(npc_paths):
+                text = str(path_index)
+                if (
+                    (path is self.selected_npc_path)
+                    or 
+                    (
+                        (current_mouse_indexes is not None) 
+                        and
+                        (list(current_mouse_indexes) == [int(path["position"][0] / TILE_SIZE), int(path["position"][1] / TILE_SIZE)])
+                    )
+                ):
+                    text: str = f"{path_index}: {self.npc_path_action_labels[path['action_type']]} ({path["time"]} f)"
+                    
+                text_surf = self.fonts["npc_path"].render(text, True, "blue")
+                
+                self.window.blit(
+                    text_surf, 
+                    self.convert_game_pos((
+                        int(path["position"][0] - text_surf.get_width() / 2),
+                        int(path["position"][1] - text_surf.get_height() / 2)
+                    ))
+                )
+                
+                
+                
         
     def draw_npcs(self) -> None:
         
@@ -637,6 +692,8 @@ class LevelCreator:
             self.manage_door_menu(all_events)
         elif self.current_mode == "npc":
             self.manage_npc_menu(all_events)
+        elif self.current_mode == "npc_path":
+            self.manage_npc_path_menu(all_events)
         elif self.current_mode == "food":
             self.manage_food_menu(all_events)
             
@@ -1157,7 +1214,111 @@ class LevelCreator:
             if right_clicked:
                 self.selected_door = None
                 self.is_placing_door = False
+    
+    def manage_npc_path_menu(self, all_events: list[pygame.Event]) -> None:
+        key_pressed = pygame.key.get_pressed()
+        left_clicked: bool = False
+        right_clicked: bool = False
+        scroll_y: int = 0
+        mouse_pressed = pygame.mouse.get_pressed()
+                    
+        ctrl_pressed = key_pressed[pygame.K_LCTRL]
+        
+        mouse_indexes = self.current_mouse_indexes()
+        screen_mouse_pos = self.screen_mouse_pos()
+        
+        
+        for event in all_events:
                 
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[0]:
+                left_clicked = True
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
+                right_clicked = True
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
+                
+        # Select placed NPC
+        if left_clicked and screen_mouse_pos is not None and not self.is_placing_npc_path:
+            all_npcs: list[dict] = get_from_dict(
+                self.level_data,
+                ["npc", str(self.current_floor)],
+                []
+            )
+            
+            for npc in all_npcs[:]:
+                
+                npc_position: tuple[int, int] = npc["position"]
+                
+                if (
+                    ((npc_position[0] - TILE_SIZE // 2) < screen_mouse_pos[0] < (npc_position[0] + TILE_SIZE // 2))
+                    and ((npc_position[1] - TILE_SIZE // 2) < screen_mouse_pos[1] < (npc_position[1] + TILE_SIZE // 2))
+                ):  
+                    
+                    self.selected_pathed_npc = npc
+                    left_clicked = False
+                    break
+        
+        # Create path for selected npc
+        if self.selected_pathed_npc and Button.all_widgets["add_path"].is_clicked():
+            self.selected_npc_path = {
+                "action_type": NPCActionType.wait,
+                "time": 0,
+                "position": [0, 0],
+                "rotation": 0
+            }
+            
+            self.is_placing_npc_path = True
+            
+        # Selected placed path
+        if left_clicked and (not self.is_placing_npc_path) and (self.selected_pathed_npc is not None) and (mouse_indexes is not None):
+            for path in self.selected_pathed_npc.get("path", [])[::-1]:
+                if [int(path["position"][0] / TILE_SIZE), int(path["position"][1] / TILE_SIZE)] == list(mouse_indexes):
+                    self.is_placing_npc_path = True
+                    self.selected_npc_path = path
+                    left_clicked = False
+                    break
+        
+        # Is placing path
+        if self.is_placing_npc_path and self.selected_npc_path:
+            if screen_mouse_pos is not None:
+                self.selected_npc_path["position"] = list(screen_mouse_pos)
+            # Adjusting action time
+            if ctrl_pressed and scroll_y:
+                self.selected_npc_path["time"] = max(0, self.selected_npc_path["time"] + scroll_y * FPS)
+            
+            # Adjust rotation
+            elif scroll_y:
+                self.selected_npc_path["rotation"] = (self.selected_npc_path["rotation"] + 90) % 360
+                
+            # Placing path
+            if left_clicked and screen_mouse_pos:
+                if self.selected_pathed_npc.get("path", None) is None:
+                    self.selected_pathed_npc["path"] = []
+                    
+                # Check if it is clicked on a food item
+                all_foods: list[FoodData] = get_from_dict(self.level_data, ["food", str(self.current_floor)], [])
+                for food in all_foods:
+                    if list(mouse_indexes) == food["indexes"]:
+                        self.selected_npc_path["action_type"] = NPCActionType.food_interaction 
+                        break
+                else:
+                    self.selected_npc_path["action_type"] = NPCActionType.wait
+                
+                if self.selected_npc_path not in self.selected_pathed_npc["path"]:
+                    self.selected_pathed_npc["path"].append(self.selected_npc_path)
+                    
+                self.selected_npc_path = None
+                self.is_placing_npc_path = False
+                left_clicked = False
+            
+            # Remove npc path
+            if (right_clicked and self.is_placing_npc_path) or Button.all_widgets["delete_path"].is_clicked():
+                
+                if (self.selected_pathed_npc.get("path", None) is not None) and self.selected_npc_path in self.selected_pathed_npc["path"]:
+                    self.selected_pathed_npc["path"].remove(self.selected_npc_path)
+                
+                self.is_placing_npc_path = False
+                self.selected_npc_path = None
                 
     def manage_npc_menu(self, all_events: list[pygame.Event]) -> None:
         key_pressed = pygame.key.get_pressed()
