@@ -1,4 +1,4 @@
-from typing import TypedDict, Optional, NotRequired
+from typing import TypedDict, NotRequired
 from enum import Enum
 
 SCREEN_SIZE = (0, 0)

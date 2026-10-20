@@ -73,6 +73,10 @@ class Game:
         
         self.current_floor: str = "0"
         
+        self.fonts: dict[str, pygame.Font] = {
+            "player_actions": pygame.font.SysFont("Arial", 25),
+        }
+        
     def initial_setup(self) -> None:
         
         for floor_level, floor_data in self.level_data["rooms"].items():
@@ -412,6 +416,15 @@ class Game:
         self.draw_foods()
         self.draw_doors()
         self.draw_npcs()
+        self.draw_hud()
+        
+    def draw_hud(self) -> None:
+        # Draw available actions
+        top: int = 10
+        for action_key in self.player.available_actions:
+            text_surf = self.fonts["player_actions"].render(action_key, True, "white")
+            self.window.blit(text_surf, (10, top))
+            top += text_surf.get_height() + 10
         
     def draw_foods(self) -> None:
         for room in self.level_rooms[self.current_floor].values():

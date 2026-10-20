@@ -1,7 +1,7 @@
 # import random
 import math
 import random
-from typing import TypedDict, TYPE_CHECKING, Generator
+from typing import TypedDict, TYPE_CHECKING, Generator, NotRequired
 
 import pygame
 from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
@@ -39,6 +39,18 @@ class FocusPosition(TypedDict):
     x: TransitionValue
     y: TransitionValue
     rotation: TransitionRotation
+    
+    
+class AvailableActions(TypedDict):
+    pass_door: NotRequired[Door]
+    fiber_wire_npc: NotRequired[NPC]
+    knock_out_npc: NotRequired[NPC]
+    sedate_npc: NotRequired[NPC]
+    lethal_poison_food: NotRequired[Food]
+    emetic_poison_food: NotRequired[Food]
+    sedate_poison_food: NotRequired[Food]
+    drag_body: NotRequired[NPC]
+    
     
     
 class GameCharacter:
@@ -467,6 +479,60 @@ class NPC(GameCharacter):
         
 class Player(GameCharacter):
     
+    MAX_NPC_INTERACTION_DISTANCE: float = 40
+    MIN_NPC_INTERACTION_DISTANCE: float = 10
+
+    def __init__(self, game, x, y, rotation, disguise, character, room_id, floor_id, is_target = False, paths = None, weapon = None):
+        super().__init__(game, x, y, rotation, disguise, character, room_id, floor_id, is_target, paths, weapon)
+        
+        self.available_actions: AvailableActions = {}
+        
+    def manage_available_actions(self) -> None:
+        self.available_actions.clear()
+        
+        # Check if player is close to a door
+        for door in self.current_room["doors"]:
+            if door.trigger_rects[self.room_id].collidepoint((self.x, self.y)):
+                self.available_actions["pass_door"] = door
+                break
+            
+        # Check if player is inside a food trigger
+        for food in self.current_room["foods"]:
+            if food.trigger_rect.collidepoint((self.x, self.y)):
+                # TODO: Check player inventory for poisons
+                self.available_actions["lethal_poison_food"] = food
+                self.available_actions["emetic_poison_food"] = food
+                self.available_actions["sedate_poison_food"] = food
+                break
+        
+        
+        for npc in self.current_room["npcs"]:
+            dx = self.x - npc.x 
+            dy = self.y - npc.y
+            squared_dist = (dx ** 2 + dy ** 2)
+            # Check if player is right behind a NPC
+            if (
+                (True) # TODO: Player have roughly the same angle as the npc
+                and (squared_dist <= self.MAX_NPC_INTERACTION_DISTANCE ** 2) # Player is close enough to the npc
+            ): 
+                npc_radian_angle = math.radians((npc.rotation + 90) % 360)
+                fx = math.cos(npc_radian_angle)
+                fy = math.sin(npc_radian_angle)
+                
+                dist = math.sqrt(squared_dist)
+                
+                dir_x = dx / dist
+                dir_y = -dy / dist
+                
+                dot_product = fx * dir_x + fy * dir_y
+                
+                if dot_product <= -0.5:
+                    self.available_actions["fiber_wire_npc"] = npc
+                    self.available_actions["knock_out_npc"] = npc
+                    self.available_actions["sedate_npc"] = npc # TODO: Check inventory
+                    break
+                
+        
     def manage_controls(self) -> None:
         
         # if pygame.key.get_just_released()[pygame.K_SPACE]:
@@ -523,6 +589,7 @@ class Player(GameCharacter):
                 return
         
     def update(self):
+        self.manage_available_actions()
         self.manage_controls()
         self.manage_pathfinding()
         self.manage_movement()
