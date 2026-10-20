@@ -433,10 +433,10 @@ class LevelCreator:
                 
                 self.window.blit(
                     text_surf, 
-                    self.convert_game_pos((
+                    self.camera.convert_pos(self.convert_game_pos((
                         int(path["position"][0] - text_surf.get_width() / 2),
                         int(path["position"][1] - text_surf.get_height() / 2)
-                    ))
+                    )))
                 )
                 
                 
@@ -774,7 +774,7 @@ class LevelCreator:
                 self.selected_food["rotation"] = (self.selected_food["rotation"] - scroll_y) % 4
             
             if mouse_indexes is not None:
-                self.selected_food["indexes"] = mouse_indexes
+                self.selected_food["indexes"] = list(mouse_indexes)
                 self.selected_food["trigger_tile"] = [
                     mouse_indexes[0] + self.neighbors_tile_food_rotation[self.selected_food["rotation"]][0], 
                     mouse_indexes[1] + self.neighbors_tile_food_rotation[self.selected_food["rotation"]][1]
@@ -783,7 +783,7 @@ class LevelCreator:
             self.selected_food["asset"] = self.selected_food_asset
             
             if not has_selected_food and left_clicked and mouse_indexes is not None:
-                # Check valid postition
+                # Check valid position
                 if get_from_dict(
                     self.level_data,
                     ["food", str(self.current_floor)],
