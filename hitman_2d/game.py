@@ -399,6 +399,8 @@ class Game:
                 npc.update()
                 
         self.player.update(all_events=all_events)
+        self.camera.x = int(self.player.x - self.window.get_width() / 2)
+        self.camera.y = int(self.player.y - self.window.get_height() / 2)
     
     def manage_doors(self) -> None:
         for door in self.doors[self.current_floor]:
