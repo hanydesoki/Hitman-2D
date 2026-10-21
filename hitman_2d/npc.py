@@ -50,6 +50,8 @@ class AvailableActions(TypedDict):
     emetic_poison_food: NotRequired[Food]
     sedate_poison_food: NotRequired[Food]
     drag_body: NotRequired[NPC]
+    swap_disguise: NotRequired[NPC]
+    
     
     
     
@@ -103,6 +105,9 @@ class GameCharacter:
         
         self.vx: float = 0
         self.vy: float = 0
+        
+        self.busy_frame: int = 0
+        self.max_busy_frame: int = 0
         
         self.focus_points: list[FocusPosition] = []
         self.current_pathfinding: list[pygame.Rect] = []
@@ -496,6 +501,24 @@ class GameCharacter:
             
         # print(self.current_pathfinding)
         
+    def swap_disguise(self, other: "GameCharacter") -> None:
+        # print("swap")
+        
+        def switch_npc_disguise() -> None:
+            other.disguise, self.disguise = self.disguise, other.disguise
+            
+            other.udpate_inconsious_surf()
+            self.udpate_inconsious_surf()
+            
+        self.game.scheduler.add(switch_npc_disguise, 60 * 3)
+        self.max_busy_frame = 60 * 3
+        self.busy_frame = 60 * 3
+        self.focus_position(
+            target_position=other.rect.center, 
+            target_rotation=(other.rotation + 180) % 360, 
+            number_frames=30
+        )
+        
     @property
     def current_room(self) -> Room:
         return self.game.level_rooms[self.floor_id][self.room_id]
@@ -526,9 +549,6 @@ class Player(GameCharacter):
         self.available_actions: AvailableActions = {}
         self.action_menu_index: int = None
         
-        self.busy_frame: int = 0
-        self.max_busy_frame: int = 0
-        
         
     def manage_available_actions(self) -> None:
         
@@ -557,8 +577,11 @@ class Player(GameCharacter):
         
         
         for npc in self.current_room["npcs"]:
+            
             if npc.inconsious:
-                pass
+                if npc.rect.colliderect(self.rect):
+                    self.available_actions["drag_body"] = npc
+                    self.available_actions["swap_disguise"] = npc        
             else:
                 dx = self.x - npc.x 
                 dy = self.y - npc.y
@@ -656,7 +679,7 @@ class Player(GameCharacter):
         if (not self.available_actions or self.action_menu_index is None): return
         
         current_action_key = list(self.available_actions)[self.action_menu_index]
-        
+        # print(current_action_key)
         # Pass throug the door and change room
         if current_action_key == "pass_door":
             door = self.available_actions.get("pass_door", None)
@@ -672,6 +695,9 @@ class Player(GameCharacter):
         
         if current_action_key == "fiber_wire_npc":
             return self.pacify(npc=self.available_actions["fiber_wire_npc"], pacification_type=2, pacification_time=60 * 2)
+        
+        if current_action_key == "swap_disguise":
+            self.swap_disguise(self.available_actions["swap_disguise"])
             
     def pacify(self, npc: "NPC", pacification_type: int, pacification_time: int) -> None:
         """Pacify any npc
@@ -685,7 +711,11 @@ class Player(GameCharacter):
         fx = math.cos(npc_radian_angle)
         fy = -math.sin(npc_radian_angle)
         
-        self.focus_position((npc.x - 15 * fx, npc.y - 15 * fy), npc.rotation, 20)
+        self.focus_position(
+            target_position=(npc.x - 15 * fx, npc.y - 15 * fy), 
+            target_rotation=npc.rotation, 
+            number_frames=20
+        )
         npc.locked = True
         npc.vx = 0
         npc.vy = 0
@@ -695,22 +725,18 @@ class Player(GameCharacter):
         def incousious_npc() -> None:
             npc.inconsious = True
             
-            if pacification_type == 0:
+            if pacification_type == 0: # Sedate
                 npc.sleeping = True
-            elif pacification_type == 1:
+            elif pacification_type == 1: # Knock out
                 npc.sleeping == False
-            elif pacification_type == 2:
-                self.alive = False
+            elif pacification_type == 2: # Kill
+                self.alive = False 
                 
             npc.locked = False
         
         self.game.scheduler.add(task=incousious_npc, schedule=pacification_time)
-            
-    # def check_and_pass_door(self) -> None:
-    #     for door in self.current_room["doors"]:
-    #         if door.trigger_rects[self.room_id].collidepoint(self.rect.center):
-    #             self.pass_door(door)
-    #             return
+
+    
         
     def update(self, all_events: list[pygame.Event]):
         self.manage_available_actions()
@@ -756,10 +782,6 @@ class Player(GameCharacter):
             )
             
             
-
-    
-        
-
 class Civilian(NPC):
     pass
 
