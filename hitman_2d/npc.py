@@ -50,13 +50,13 @@ class AvailableActions(TypedDict):
     emetic_poison_food: NotRequired[Food]
     sedate_poison_food: NotRequired[Food]
     drag_body: NotRequired[NPC]
+    release_body: NotRequired[NPC]
     swap_disguise: NotRequired[NPC]
-    
-    
     
     
 class GameCharacter:
     
+    drag_speed: float = 0.6
     walk_speed: float = 1.0
     run_speed: float = 2.0
     
@@ -118,6 +118,8 @@ class GameCharacter:
         
         self.locked: bool = False
         
+        self.dragged_body: "GameCharacter" | None = None
+        
         self.metadata: dict = {}
     
     def udpate_inconsious_surf(self) -> None:
@@ -138,9 +140,8 @@ class GameCharacter:
                 surf, 
                 (int(self.inconsious_surf.get_width() / 2 - surf.get_width() / 2), top)
             )
-            top += surf.get_height()
-            
-        
+            top += surf.get_height()        
+    
     def focus_position(self, 
         target_position: tuple[float, float], 
         target_rotation: float, 
@@ -334,6 +335,24 @@ class GameCharacter:
         self.target_room_position = position
         # print(self.room_to_traverse)
         
+    def drag_body(self, other: "GameCharacter") -> None:
+        if other.inconsious:
+            
+            def drag_npc() -> None:
+                self.dragged_body = other
+                
+            self.game.scheduler.add(drag_npc, 30)
+            self.focus_position(
+                target_position=other.rect.center,
+                target_rotation=(self.rotation + 20) % 360,
+                number_frames=30
+            )
+            self.busy_frame = 30
+            self.max_busy_frame = 30
+            
+    def release_body(self) -> None:
+        self.dragged_body = None
+        
     def manage_npc_behaviour(self) -> None:
         
         if self.locked: return
@@ -388,6 +407,7 @@ class GameCharacter:
         
         # Follow the train CJ
         if self.current_pathfinding:
+            
             next_node_rect = self.current_pathfinding[0]
             
             dx = next_node_rect.centerx - self.x
@@ -395,8 +415,12 @@ class GameCharacter:
             
             norm: float = math.sqrt(dx ** 2 + dy ** 2)
             
-            self.vx = dx / norm * self.walk_speed
-            self.vy = dy / norm * self.walk_speed
+            speed = self.walk_speed
+            if self.dragged_body is not None:
+                speed = self.drag_speed
+            
+            self.vx = dx / norm * speed
+            self.vy = dy / norm * speed
             
             self.rotation = math.degrees(math.atan2(-dy, dx) - math.pi / 2)
             # print(self.rotation)
@@ -519,6 +543,11 @@ class GameCharacter:
             number_frames=30
         )
         
+    def manage_body_dragged(self) -> None:
+        if self.dragged_body is None: return
+        
+        self.dragged_body.x, self.dragged_body.y = self.rect.center
+        
     @property
     def current_room(self) -> Room:
         return self.game.level_rooms[self.floor_id][self.room_id]
@@ -529,13 +558,21 @@ class NPC(GameCharacter):
     def update(self):
         self.manage_npc_behaviour()
         self.manage_pathfinding()
+        self.manage_body_dragged()
         self.manage_movement()
         # self.manage_focus_transitions()
         
     def pass_door(self, door) -> None:
         self.current_room["npcs"].remove(self)
+        if self.dragged_body is not None:
+            self.current_room["npcs"].remove(self.dragged_body)
+            
         super().pass_door(door)
         self.current_room["npcs"].append(self)
+        
+        if self.dragged_body is not None:
+            self.current_room["npcs"].append(self.dragged_body)
+        
         
         
 class Player(GameCharacter):
@@ -579,9 +616,11 @@ class Player(GameCharacter):
         for npc in self.current_room["npcs"]:
             
             if npc.inconsious:
-                if npc.rect.colliderect(self.rect):
+                if self.dragged_body is None and npc.rect.colliderect(self.rect):
                     self.available_actions["drag_body"] = npc
-                    self.available_actions["swap_disguise"] = npc        
+                    self.available_actions["swap_disguise"] = npc
+                elif self.dragged_body is not None:
+                    self.available_actions["release_body"] = self.dragged_body      
             else:
                 dx = self.x - npc.x 
                 dy = self.y - npc.y
@@ -611,7 +650,7 @@ class Player(GameCharacter):
         if current_selected_action in self.available_actions:
             self.action_menu_index = list(self.available_actions).index(current_selected_action)
         elif self.action_menu_index is None and self.available_actions:
-                    self.action_menu_index = 0
+            self.action_menu_index = 0
         else:
             self.action_menu_index = None
         
@@ -651,6 +690,9 @@ class Player(GameCharacter):
             self.action_menu_index = (self.action_menu_index - scroll_y) % len(self.available_actions)
         
         speed: float = self.run_speed if key_pressed[pygame.K_LSHIFT] else self.walk_speed
+        
+        if self.dragged_body is not None:
+            speed = self.drag_speed
         
         self.vx = 0
         self.vy = 0
@@ -697,7 +739,13 @@ class Player(GameCharacter):
             return self.pacify(npc=self.available_actions["fiber_wire_npc"], pacification_type=2, pacification_time=60 * 2)
         
         if current_action_key == "swap_disguise":
-            self.swap_disguise(self.available_actions["swap_disguise"])
+            return self.swap_disguise(self.available_actions["swap_disguise"])
+            
+        if current_action_key == "drag_body":
+            return self.drag_body(self.available_actions["drag_body"])
+        
+        if current_action_key == "release_body":
+            return self.release_body()
             
     def pacify(self, npc: "NPC", pacification_type: int, pacification_time: int) -> None:
         """Pacify any npc
@@ -735,11 +783,10 @@ class Player(GameCharacter):
             npc.locked = False
         
         self.game.scheduler.add(task=incousious_npc, schedule=pacification_time)
-
-    
         
     def update(self, all_events: list[pygame.Event]):
         self.manage_available_actions()
+        self.manage_body_dragged()
         self.manage_controls(all_events=all_events)
         self.manage_pathfinding()
         self.manage_busy()
@@ -750,6 +797,15 @@ class Player(GameCharacter):
         
         if self.busy_frame == 0:
             self.max_busy_frame = 0
+            
+    def pass_door(self, door):
+        
+        if self.dragged_body is not None:
+            self.current_room["npcs"].remove(self.dragged_body)
+        super().pass_door(door)
+        
+        if self.dragged_body is not None:
+            self.current_room["npcs"].append(self.dragged_body)
         
             
     def draw(self) -> None:
