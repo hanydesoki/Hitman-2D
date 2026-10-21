@@ -486,8 +486,20 @@ class Player(GameCharacter):
         super().__init__(game, x, y, rotation, disguise, character, room_id, floor_id, is_target, paths, weapon)
         
         self.available_actions: AvailableActions = {}
+        self.action_menu_index: int = None
+        
+        self.busy_frame: int = 0
+        self.max_busy_frame: int = 0
+        
         
     def manage_available_actions(self) -> None:
+        
+        current_selected_action: str | None = None        
+        if self.available_actions and self.action_menu_index is not None:
+            action_list = list(self.available_actions)
+            
+            current_selected_action = action_list[self.action_menu_index]
+        
         self.available_actions.clear()
         
         # Check if player is close to a door
@@ -512,7 +524,7 @@ class Player(GameCharacter):
             squared_dist = (dx ** 2 + dy ** 2)
             # Check if player is right behind a NPC
             if (
-                (True) # TODO: Player have roughly the same angle as the npc
+                squared_dist != 0
                 and (squared_dist <= self.MAX_NPC_INTERACTION_DISTANCE ** 2) # Player is close enough to the npc
             ): 
                 npc_radian_angle = math.radians((npc.rotation + 90) % 360)
@@ -531,9 +543,15 @@ class Player(GameCharacter):
                     self.available_actions["knock_out_npc"] = npc
                     self.available_actions["sedate_npc"] = npc # TODO: Check inventory
                     break
-                
         
-    def manage_controls(self) -> None:
+        if current_selected_action in self.available_actions:
+            self.action_menu_index = list(self.available_actions).index(current_selected_action)
+        elif self.action_menu_index is None and self.available_actions:
+                    self.action_menu_index = 0
+        else:
+            self.action_menu_index = None
+        
+    def manage_controls(self, all_events: list[pygame.Event]) -> None:
         
         # if pygame.key.get_just_released()[pygame.K_SPACE]:
         #     self.focus_position(
@@ -542,9 +560,9 @@ class Player(GameCharacter):
         #         60 * 2,
         #     )
         
-        if pygame.mouse.get_just_released()[0]:
-            mouse_pos = pygame.mouse.get_pos()
-            self.go_to(mouse_pos)
+        # if pygame.mouse.get_just_released()[0]:
+        #     mouse_pos = pygame.mouse.get_pos()
+        #     self.go_to(mouse_pos)
         
         if self.current_pathfinding: return
 
@@ -556,6 +574,15 @@ class Player(GameCharacter):
             self.rotation = (self.rotation + 6) % 360
         if key_pressed[pygame.K_RIGHT]:
             self.rotation = (self.rotation - 6) % 360
+            
+        scroll_y: int = 0
+        
+        for event in all_events:
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
+                
+        if scroll_y and self.action_menu_index is not None and self.available_actions:
+            self.action_menu_index = (self.action_menu_index - scroll_y) % len(self.available_actions)
         
         speed: float = self.run_speed if key_pressed[pygame.K_LSHIFT] else self.walk_speed
         
@@ -578,10 +605,24 @@ class Player(GameCharacter):
             self.vx = self.vx / magnitude * speed
             self.vy = self.vy / magnitude * speed
         
-        # Pressing Space will attempt to pass throug a door and change room
-        if pygame.key.get_just_released()[pygame.K_SPACE] and self.available_actions.get("pass_door", None) is not None:
-            # self.check_and_pass_door()
-            self.pass_door(self.available_actions["pass_door"])
+        # Pressing Space will attempt to execute the current selected action in the topleft menu
+        if pygame.key.get_just_released()[pygame.K_SPACE]:
+            self.execute_selected_action()
+    
+    def execute_selected_action(self) -> None:
+        if (not self.available_actions or self.action_menu_index is None): return
+        
+        current_action_key = list(self.available_actions)[self.action_menu_index]
+        
+        # Pass throug the door and change room
+        if current_action_key == "pass_door":
+            door = self.available_actions.get("pass_door", None)
+            if door is not None:
+                self.pass_door(door)
+                return
+        
+            
+            
             
     # def check_and_pass_door(self) -> None:
     #     for door in self.current_room["doors"]:
@@ -589,9 +630,9 @@ class Player(GameCharacter):
     #             self.pass_door(door)
     #             return
         
-    def update(self):
+    def update(self, all_events: list[pygame.Event]):
         self.manage_available_actions()
-        self.manage_controls()
+        self.manage_controls(all_events=all_events)
         self.manage_pathfinding()
         self.manage_movement()
         

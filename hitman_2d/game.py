@@ -393,12 +393,12 @@ class Game:
         # print(self.level_rooms["0"]["0"])
         # print(self.room_graph_links["0"])
         
-    def manage_npcs(self) -> None:
+    def manage_npcs(self, all_events: list[pygame.Event]) -> None:
         for room in self.level_rooms[self.current_floor].values():
             for npc in room["npcs"]:
                 npc.update()
                 
-        self.player.update()
+        self.player.update(all_events=all_events)
     
     def manage_doors(self) -> None:
         for door in self.doors[self.current_floor]:
@@ -425,8 +425,11 @@ class Game:
     def draw_hud(self) -> None:
         # Draw available actions
         top: int = 10
-        for action_key in self.player.available_actions:
-            text_surf = self.fonts["player_actions"].render(action_key, True, "white")
+        for action_index, action_key in enumerate(self.player.available_actions):
+            
+            is_selected_action: bool = self.player.action_menu_index == action_index
+            
+            text_surf = self.fonts["player_actions"].render(action_key, True, "lightblue" if is_selected_action else "white")
             self.window.blit(text_surf, (10, top))
             top += text_surf.get_height() + 10
         
@@ -465,8 +468,8 @@ class Game:
                     furniture_rect.topleft = self.camera.convert_pos(furniture_rect.topleft)
                     pygame.draw.rect(self.window, "red", furniture_rect, width=2)
                     
-    def update(self) -> None:
-        self.manage_npcs()
+    def update(self, all_events: list[pygame.Event]) -> None:
+        self.manage_npcs(all_events=all_events)
         self.manage_doors()
         
     def run(self) -> None:
@@ -480,7 +483,7 @@ class Game:
                 if event.type == pygame.QUIT or ((event.type == pygame.KEYDOWN) and (event.key == pygame.K_ESCAPE)):
                     self.run_loop = False
                     
-            self.update()
+            self.update(all_events=all_events)
             
             self.draw()
             pygame.display.update()
