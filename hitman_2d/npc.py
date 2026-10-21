@@ -579,14 +579,15 @@ class Player(GameCharacter):
             self.vy = self.vy / magnitude * speed
         
         # Pressing Space will attempt to pass throug a door and change room
-        if pygame.key.get_just_released()[pygame.K_SPACE]:
-            self.check_and_pass_door()
+        if pygame.key.get_just_released()[pygame.K_SPACE] and self.available_actions.get("pass_door", None) is not None:
+            # self.check_and_pass_door()
+            self.pass_door(self.available_actions["pass_door"])
             
-    def check_and_pass_door(self) -> None:
-        for door in self.current_room["doors"]:
-            if door.trigger_rects[self.room_id].collidepoint(self.rect.center):
-                self.pass_door(door)
-                return
+    # def check_and_pass_door(self) -> None:
+    #     for door in self.current_room["doors"]:
+    #         if door.trigger_rects[self.room_id].collidepoint(self.rect.center):
+    #             self.pass_door(door)
+    #             return
         
     def update(self):
         self.manage_available_actions()

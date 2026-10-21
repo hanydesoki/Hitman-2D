@@ -89,6 +89,8 @@ class Game:
             all_doors: list[DoorData] = get_from_dict(self.level_data, ["doors", floor_level], [])[:]
             all_foods: list[FoodData] = get_from_dict(self.level_data, ["food", floor_level], [])[:]
             
+            floor_foods: list[Food] = []
+            
             for room_id, room_data in floor_data.items():
                 room_furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]] = []
                 room_npcs: list[NPC] = []
@@ -225,6 +227,8 @@ class Game:
                         )
                         
                         room_foods.append(new_food)
+                        all_foods.remove(food_data)
+                        floor_foods.append(new_food)
                                  
                 # Place NPC and player
                 for npc_data in all_npcs[:]:
@@ -261,7 +265,7 @@ class Game:
                         for path in npc_paths:
                             # Check food interaction
                             if path["action_type"] == NPCActionType.food_interaction:
-                                for food in room_foods:
+                                for food in floor_foods:
                                     if food.rect.collidepoint(path["position"]):
                                         path["position"] = food.trigger_rect.center
                                         path["metadata"] = {
