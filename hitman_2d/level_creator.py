@@ -212,7 +212,7 @@ class LevelCreator:
                             y=top,
                             surf=surf,
                             key=surf_key,
-                            colorkey="white"
+                            colorkey="black"
                         )
                         self.menu_layout[menu_key].append(selectable_asset)
                         
@@ -473,8 +473,7 @@ class LevelCreator:
                 max(npc_top_head_surf.get_height(), npc_shoulder_surf.get_height())
             ))
             
-            preview_surf.fill("white")
-            
+            preview_surf.fill("black")
             
             preview_surf.blit(
                 npc_shoulder_surf, 
@@ -495,7 +494,7 @@ class LevelCreator:
             
             preview_surf = pygame.transform.rotate(preview_surf, npc["rotation"] * 90)
             
-            preview_surf.set_colorkey("white")
+            preview_surf.set_colorkey("black")
             
             if is_placing_npc and npc is self.selected_npc:
                 preview_surf.set_alpha(180)
@@ -526,7 +525,7 @@ class LevelCreator:
                 0
             )
             
-            preview_surf.set_colorkey("white")
+            preview_surf.set_colorkey("black")
             
             
             if is_placing_food and i == (len(all_foods) - 1):
@@ -564,7 +563,7 @@ class LevelCreator:
                 furniture["rotation"] * 90
             )
             
-            preview_surf.set_colorkey("white")
+            preview_surf.set_colorkey("black")
             
             
             if is_placing_furniture and i == (len(all_furnitures) - 1):
@@ -608,7 +607,7 @@ class LevelCreator:
             
             preview_surf = pygame.transform.rotate(preview_surf, door["rotation"] * 90)
             
-            preview_surf.set_colorkey("white")
+            preview_surf.set_colorkey("black")
             
             if is_placing_door and i == (len(all_doors) - 1):
                 preview_surf.set_alpha(180)

@@ -90,6 +90,9 @@ class GameCharacter:
         
         self.rect = self.character["top_head"].get_rect(center=(x, y))
         
+        self.inconsious_surf: pygame.Surface = None
+        self.udpate_inconsious_surf()
+        
         self.inconsious: bool = False
         self.alive: bool = True
         self.sleeping: bool = False
@@ -108,7 +111,30 @@ class GameCharacter:
         
         self.next_door: Door | None = None
         
+        self.locked: bool = False
+        
         self.metadata: dict = {}
+    
+    def udpate_inconsious_surf(self) -> None:
+        surf_head = self.character["face"].copy()
+        surf_torso = self.disguise["torso"].copy()
+        surf_legs = self.disguise["legs"].copy()
+        
+        self.inconsious_surf = pygame.Surface((
+            max(surf_head.get_width(), surf_torso.get_width(), surf_legs.get_width()),
+            surf_head.get_height() + surf_torso.get_height() + surf_legs.get_height()
+        ))
+        
+        self.inconsious_surf.fill("black")
+        
+        top = 0
+        for surf in [surf_head, surf_torso, surf_legs]:
+            self.inconsious_surf.blit(
+                surf, 
+                (int(self.inconsious_surf.get_width() / 2 - surf.get_width() / 2), top)
+            )
+            top += surf.get_height()
+            
         
     def focus_position(self, 
         target_position: tuple[float, float], 
@@ -135,16 +161,14 @@ class GameCharacter:
             "rotation": TransitionRotation(start_rotation, target_rotation, number_frames)
         })
 
-        
-        
     def draw(self) -> None:
-        if self.alive and not self.inconsious:
+        if not self.inconsious:
             top_head_surf = pygame.transform.rotate(self.character["top_head"], self.rotation)
-            top_head_surf.set_colorkey("white")
+            top_head_surf.set_colorkey("black")
             top_head_rect = top_head_surf.get_rect(center=self.rect.center)
             
             shoulder_surf = pygame.transform.rotate(self.disguise["shoulder"], self.rotation)
-            shoulder_surf.set_colorkey("white")
+            shoulder_surf.set_colorkey("black")
             shoulder_rect = shoulder_surf.get_rect(center=self.rect.center)
             
             self.game.window.blit(shoulder_surf, self.game.camera.convert_pos(shoulder_rect.topleft))
@@ -154,9 +178,17 @@ class GameCharacter:
             # collision_rect.topleft = self.game.camera.convert_pos(top_head_rect.topleft)
             # pygame.draw.rect(self.game.window, "green", collision_rect, width=1)
         else:
-            pass
+            rotated_surf = pygame.transform.rotozoom(self.inconsious_surf, (self.rotation + 180) % 360, 0.7)
+            rotated_surf.set_colorkey("black")
+            
+            self.game.window.blit(
+                rotated_surf,
+                self.game.camera.convert_pos((int(self.x - rotated_surf.get_width() / 2), int(self.y - rotated_surf.get_height() / 2)))
+            )
         
     def manage_movement(self) -> None:
+        
+        if self.locked: return
         
         if self.manage_focus_transitions(): return
         
@@ -299,7 +331,9 @@ class GameCharacter:
         
     def manage_npc_behaviour(self) -> None:
         
-        if not self.alive: return
+        if self.locked: return
+        
+        if self.inconsious: return
         
         if not self.paths and self.original_path:
             self.paths.extend(self.original_path)
@@ -342,6 +376,10 @@ class GameCharacter:
         self.finished_current_path = False
             
     def manage_pathfinding(self) -> None:
+        
+        if self.locked: return
+        
+        if self.inconsious: return
         
         # Follow the train CJ
         if self.current_pathfinding:
@@ -519,30 +557,33 @@ class Player(GameCharacter):
         
         
         for npc in self.current_room["npcs"]:
-            dx = self.x - npc.x 
-            dy = self.y - npc.y
-            squared_dist = (dx ** 2 + dy ** 2)
-            # Check if player is right behind a NPC
-            if (
-                squared_dist != 0
-                and (squared_dist <= self.MAX_NPC_INTERACTION_DISTANCE ** 2) # Player is close enough to the npc
-            ): 
-                npc_radian_angle = math.radians((npc.rotation + 90) % 360)
-                fx = math.cos(npc_radian_angle)
-                fy = math.sin(npc_radian_angle)
-                
-                dist = math.sqrt(squared_dist)
-                
-                dir_x = dx / dist
-                dir_y = -dy / dist
-                
-                dot_product = fx * dir_x + fy * dir_y
-                
-                if dot_product <= -0.5:
-                    self.available_actions["fiber_wire_npc"] = npc
-                    self.available_actions["knock_out_npc"] = npc
-                    self.available_actions["sedate_npc"] = npc # TODO: Check inventory
-                    break
+            if npc.inconsious:
+                pass
+            else:
+                dx = self.x - npc.x 
+                dy = self.y - npc.y
+                squared_dist = (dx ** 2 + dy ** 2)
+                # Check if player is right behind a NPC
+                if (
+                    squared_dist != 0
+                    and (squared_dist <= self.MAX_NPC_INTERACTION_DISTANCE ** 2) # Player is close enough to the npc
+                ): 
+                    npc_radian_angle = math.radians((npc.rotation + 90) % 360)
+                    fx = math.cos(npc_radian_angle)
+                    fy = math.sin(npc_radian_angle)
+                    
+                    dist = math.sqrt(squared_dist)
+                    
+                    dir_x = dx / dist
+                    dir_y = -dy / dist
+                    
+                    dot_product = fx * dir_x + fy * dir_y
+                    
+                    if dot_product <= -0.5:
+                        self.available_actions["fiber_wire_npc"] = npc
+                        self.available_actions["knock_out_npc"] = npc
+                        self.available_actions["sedate_npc"] = npc # TODO: Check inventory
+                        break
         
         if current_selected_action in self.available_actions:
             self.action_menu_index = list(self.available_actions).index(current_selected_action)
@@ -563,6 +604,8 @@ class Player(GameCharacter):
         # if pygame.mouse.get_just_released()[0]:
         #     mouse_pos = pygame.mouse.get_pos()
         #     self.go_to(mouse_pos)
+        
+        if self.busy_frame > 0: return
         
         if self.current_pathfinding: return
 
@@ -621,8 +664,47 @@ class Player(GameCharacter):
                 self.pass_door(door)
                 return
         
+        if current_action_key == "sedate_npc":
+            return self.pacify(npc=self.available_actions["sedate_npc"], pacification_type=0, pacification_time=60 * 5)
+                
+        if current_action_key == "knock_out_npc":
+            return self.pacify(npc=self.available_actions["knock_out_npc"], pacification_type=1, pacification_time=60 * 5)
+        
+        if current_action_key == "fiber_wire_npc":
+            return self.pacify(npc=self.available_actions["fiber_wire_npc"], pacification_type=2, pacification_time=60 * 2)
             
+    def pacify(self, npc: "NPC", pacification_type: int, pacification_time: int) -> None:
+        """Pacify any npc
+
+        Args:
+            npc (NPC): NPC to pacify
+            pacification_type (int): Type of pacification ->  0: Sedate; 1: Knock out;  2: Kill;
+            pacification_time (int): Time it take to pacify the npc
+        """
+        npc_radian_angle = math.radians((npc.rotation + 90) % 360)
+        fx = math.cos(npc_radian_angle)
+        fy = -math.sin(npc_radian_angle)
+        
+        self.focus_position((npc.x - 15 * fx, npc.y - 15 * fy), npc.rotation, 20)
+        npc.locked = True
+        npc.vx = 0
+        npc.vy = 0
+        self.max_busy_frame = pacification_time
+        self.busy_frame = self.max_busy_frame
+        
+        def incousious_npc() -> None:
+            npc.inconsious = True
             
+            if pacification_type == 0:
+                npc.sleeping = True
+            elif pacification_type == 1:
+                npc.sleeping == False
+            elif pacification_type == 2:
+                self.alive = False
+                
+            npc.locked = False
+        
+        self.game.scheduler.add(task=incousious_npc, schedule=pacification_time)
             
     # def check_and_pass_door(self) -> None:
     #     for door in self.current_room["doors"]:
@@ -634,15 +716,46 @@ class Player(GameCharacter):
         self.manage_available_actions()
         self.manage_controls(all_events=all_events)
         self.manage_pathfinding()
+        self.manage_busy()
         self.manage_movement()
+        
+    def manage_busy(self) -> None:
+        self.busy_frame = max(0, self.busy_frame - 1)
+        
+        if self.busy_frame == 0:
+            self.max_busy_frame = 0
         
             
     def draw(self) -> None:
         super().draw()
 
-        # for node_rect in self.current_pathfinding:
-        #     rect = node_rect.copy()
-        #     pygame.draw.rect(self.game.window, "purple", rect)
+        if self.busy_frame:
+            rect_width: int = 70
+            rect_height: int = 10
+            rect_x = self.rect.centerx - rect_width / 2
+            pygame.draw.rect(
+                self.game.window,
+                "lightgray",
+                (
+                    *self.game.camera.convert_pos((rect_x,
+                    self.rect.top - rect_height - 10)),
+                    rect_width,
+                    rect_height
+                )
+            )
+            
+            pygame.draw.rect(
+                self.game.window,
+                "red",
+                (
+                    *self.game.camera.convert_pos((rect_x,
+                    self.rect.top - rect_height - 10)),
+                    int(rect_width * (1 - self.busy_frame / self.max_busy_frame)),
+                    rect_height
+                )
+            )
+            
+            
 
     
         

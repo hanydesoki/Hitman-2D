@@ -16,6 +16,7 @@ from .camera import Camera
 from .npc import NPC, Player, Guard, Civilian, DisguiseData, CharacterData
 from .door import Door, DoorSurfaces
 from .food import Food
+from .scheduler import Scheduler
 
 
 class Room(TypedDict):
@@ -65,6 +66,8 @@ class Game:
         self.player: Player = None
         
         self.initial_setup()
+        
+        self.scheduler = Scheduler()
         
         self.run_loop: bool = True
         self.clock: pygame.Clock = pygame.Clock()
@@ -169,7 +172,7 @@ class Game:
                             furniture["rotation"] * 90
                         )
                         
-                        furniture_surf.set_colorkey("white")
+                        furniture_surf.set_colorkey("black")
                         
                         furniture_rect = furniture_surf.get_rect(topleft=furniture_position)
 
@@ -209,7 +212,7 @@ class Game:
                         (room_data["indexes"][1] <= food_data["indexes"][1] <= ((food_data["indexes"][1] + room_data["height"])))
                     ):
                         food_surface: pygame.Surface = get_from_dict(self.assets, food_data["asset"].split(os.path.sep), None)
-                        food_surface.set_colorkey("white")
+                        food_surface.set_colorkey("black")
                         
                         food_trigger_rect = pygame.Rect(
                             food_data["trigger_tile"][0] * TILE_SIZE,
@@ -471,6 +474,7 @@ class Game:
                     pygame.draw.rect(self.window, "red", furniture_rect, width=2)
                     
     def update(self, all_events: list[pygame.Event]) -> None:
+        self.scheduler.update()
         self.manage_npcs(all_events=all_events)
         self.manage_doors()
         
