@@ -38,7 +38,17 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "type": "assets",
             "label": "Floor",
             "path": ["Floor_Tiles"]
-        } 
+        },
+        "allowed_disguises": {
+            "type": "assets",
+            "toggleable": True,
+            "label": "Allowed disguises",
+            "path": ["Disguises"],
+            "filter": {
+                "type": "equal",
+                "value": "torso"
+            }
+        }, 
     },
     "tiles": {},
     
@@ -147,6 +157,7 @@ class RoomData(TypedDict):
     width: int
     height: int
     room_id: str
+    allowed_disguises: NotRequired[list[str]]
     
     
 class FurnitureData(TypedDict):

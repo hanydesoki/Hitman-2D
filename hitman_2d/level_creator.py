@@ -16,7 +16,7 @@ from .camera import Camera
 from .button import Button
 from .segmented_control import SegmentedControl
 from .text_display import TextDisplay
-from .selectable_asset import SelectableAsset
+from .selectable_asset import SelectableAsset, ToggleableAsset
 from .json_editor import JSONEditor
 from .text_field import TextField
 from .checkbox import Checkbox
@@ -120,6 +120,7 @@ class LevelCreator:
         self.is_placing_room: bool = False
         self.selected_room_id: str | None = None
         self.valid_room_placement: bool = False
+        self.room_allowed_disguises: list[str] = []
         
         # Furniture menu states
         self.selected_furniture: FurnitureData = None
@@ -206,14 +207,24 @@ class LevelCreator:
                         if left + surf.get_width() + 10 > LEFT_SIDEBAR_MENU_WIDTH:
                             left = 10
                             top += surf.get_height() + 10
-                            
-                        selectable_asset = SelectableAsset(
-                            x=left,
-                            y=top,
-                            surf=surf,
-                            key=surf_key,
-                            colorkey="black"
-                        )
+                        
+                        if widget_infos.get("toggleable", False):
+                            selectable_asset = ToggleableAsset(
+                                x=left,
+                                y=top,
+                                surf=surf,
+                                key=surf_key,
+                                colorkey="black",
+                                toggled=False
+                            )
+                        else:
+                            selectable_asset = SelectableAsset(
+                                x=left,
+                                y=top,
+                                surf=surf,
+                                key=surf_key,
+                                colorkey="black"
+                            )
                         self.menu_layout[menu_key].append(selectable_asset)
                         
                         left += surf.get_width() + 10     
@@ -833,9 +844,12 @@ class LevelCreator:
                 left_clicked = True
             if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
                 right_clicked = True
-
-        # Asset selection (wall / floor)    
-        for selectable_asset in (w for w in self.menu_layout["room"] if isinstance(w, SelectableAsset)):
+                
+        wall_and_floor_assets = [w for w in self.menu_layout["room"] if isinstance(w, SelectableAsset) and not isinstance(w, ToggleableAsset)]
+        allowed_disguises_assets = [w for w in self.menu_layout["room"] if isinstance(w, ToggleableAsset)]
+        
+        # Asset selection (wall / floor) 
+        for selectable_asset in wall_and_floor_assets:
             if selectable_asset.is_clicked() or (self.selected_room_wall is None or self.selected_room_floor is None):
                 if selectable_asset.key.startswith("Walls"):
                     self.selected_room_wall = selectable_asset.key
@@ -855,6 +869,27 @@ class LevelCreator:
                     
                     room_obj["wall_tile"] = self.selected_room_wall
                     room_obj["floor_tile"] = self.selected_room_floor
+        
+        # Manage allowed disguises in the room  
+        for selectable_asset in allowed_disguises_assets:
+            if selectable_asset.is_clicked():
+                selectable_asset.toggle()
+                self.room_allowed_disguises = [w.key for w in allowed_disguises_assets if w.toggled]
+                if self.selected_room_id is not None:
+                    room: RoomData = get_from_dict(
+                        self.level_data,
+                        [   
+                            "rooms",
+                            str(self.current_floor),
+                            self.selected_room_id   
+                        ],
+                        None
+                    )
+                    
+                    if room is not None:
+                        room["allowed_disguises"] = self.room_allowed_disguises[:]
+
+                break
         
         # Create room
         if Button.all_widgets["create_room"].is_clicked():
@@ -897,6 +932,7 @@ class LevelCreator:
                     "floor": self.current_floor,
                     "width": self.room_width,
                     "height": self.room_height,
+                    "allowed_disguises": self.room_allowed_disguises
                 }
             )
             
@@ -919,6 +955,10 @@ class LevelCreator:
                 self.selected_room_wall = room_obj["wall_tile"]
                 self.room_width = room_obj["width"]
                 self.room_height = room_obj["height"]
+                self.room_allowed_disguises = room_obj.get("allowed_disguises", [])
+                # Update allowed disguises widgets
+                for w in allowed_disguises_assets:
+                    w.toggled = w.key in self.room_allowed_disguises
             else:
                 self.selected_room_id = None
                 

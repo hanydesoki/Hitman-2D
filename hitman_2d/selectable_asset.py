@@ -76,3 +76,17 @@ class SelectableAsset:
     @property
     def centery(self) -> int:
         return self.rect.centery
+    
+class ToggleableAsset(SelectableAsset):
+    
+    def __init__(self, x, y, surf, key, label = None, colorkey=None, toggled: bool = False):
+        super().__init__(x, y, surf, key, label, colorkey)
+        
+        self.toggled = toggled
+        
+    def toggle(self) -> None:
+        self.toggled = not self.toggled
+        
+    def draw(self):
+        self.surf.set_alpha(255 if self.toggled else 100)
+        super().draw()
