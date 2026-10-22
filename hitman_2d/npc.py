@@ -9,6 +9,7 @@ from pathfinding.core.grid import Grid, GridNode
 
 from .transition_value import TransitionValue, TransitionRotation
 from .utilities import find_all_paths
+from .geometry import segments_intersect
 from .settings import TILE_SIZE
 
 
@@ -543,6 +544,50 @@ class GameCharacter:
             number_frames=30
         )
         
+    def can_see_point(self, point: tuple[float, float], player_see_through: bool = False, body_see_through: bool = False) -> bool:
+        # Check if inside the same room
+        if not self.current_room["rect"].collidepoint(point): return
+        
+        # TODO: Check character orientation
+        dx = self.x - point[0]
+        dy = self.y - point[1]
+        
+        squared_dist = dx ** 2 + dy ** 2
+        
+        if squared_dist == 0: return True
+        
+        npc_radian_angle = math.radians((self.rotation + 90) % 360)
+        fx = math.cos(npc_radian_angle)
+        fy = math.sin(npc_radian_angle)
+
+        dist = math.sqrt(squared_dist)
+
+        dir_x = dx / dist
+        dir_y = -dy / dist
+
+        dot_product = fx * dir_x + fy * dir_y
+
+        if dot_product > 0: return False
+        
+        # Check all furniture intersection
+        for furniture_data, _, rect in self.current_room["furnitures"]:
+            if player_see_through and furniture_data.get("player_see_through", False): continue
+            if body_see_through and furniture_data.get("body_see_through", False): continue
+            
+            if self.segment_intersect_rect(self.x, self.y, point[0], point[1], rect=rect): return False
+            
+        return True
+            
+    @staticmethod
+    def segment_intersect_rect(x1: float, y1: float, x2: float, y2: float, rect: pygame.Rect) -> bool:
+        if segments_intersect(x1, y1, x2, y2, *rect.topleft, *rect.topright): return True
+        if segments_intersect(x1, y1, x2, y2, *rect.topright, *rect.bottomright): return True
+        if segments_intersect(x1, y1, x2, y2, *rect.bottomright, *rect.bottomleft): return True
+        if segments_intersect(x1, y1, x2, y2, *rect.bottomleft, *rect.topleft): return True
+        
+        return False
+        
+        
     def manage_body_dragged(self) -> None:
         if self.dragged_body is None: return
         
@@ -791,6 +836,7 @@ class Player(GameCharacter):
         self.manage_pathfinding()
         self.manage_busy()
         self.manage_movement()
+
         
     def manage_busy(self) -> None:
         self.busy_frame = max(0, self.busy_frame - 1)
@@ -836,7 +882,17 @@ class Player(GameCharacter):
                     rect_height
                 )
             )
-            
+        
+        # Test line of sight mechanic
+        mouse_pos = pygame.mouse.get_pos()
+        mouse_pos_game = self.game.camera.reverse_pos(mouse_pos)
+        
+        pygame.draw.line(
+            self.game.window, 
+            "green" if self.can_see_point(mouse_pos_game) else "red",
+            start_pos=self.game.camera.convert_pos((self.x, self.y)),
+            end_pos=mouse_pos,
+        ) 
             
 class Civilian(NPC):
     pass

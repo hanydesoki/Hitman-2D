@@ -277,27 +277,13 @@
         "0": [
             {
                 "indexes": [
-                    12,
-                    17
+                    19,
+                    12
                 ],
-                "asset": "Furnitures\\Decorations\\plant_pot",
-                "rotation": 0
-            },
-            {
-                "indexes": [
-                    15,
-                    17
-                ],
-                "asset": "Furnitures\\Decorations\\plant_pot",
-                "rotation": 0
-            },
-            {
-                "indexes": [
-                    11,
-                    23
-                ],
-                "asset": "Furnitures\\Containers\\basket_container",
-                "rotation": 2
+                "asset": "Furnitures\\Decorations\\table_1",
+                "rotation": 3,
+                "body_see_through": false,
+                "player_see_through": true
             },
             {
                 "indexes": [
@@ -305,7 +291,27 @@
                     12
                 ],
                 "asset": "Furnitures\\Containers\\closet",
-                "rotation": 1
+                "rotation": 1,
+                "player_see_through": false
+            },
+            {
+                "indexes": [
+                    17,
+                    12
+                ],
+                "asset": "Furnitures\\Decorations\\table_1",
+                "rotation": 3,
+                "body_see_through": false,
+                "player_see_through": true
+            },
+            {
+                "indexes": [
+                    11,
+                    23
+                ],
+                "asset": "Furnitures\\Containers\\basket_container",
+                "rotation": 2,
+                "player_see_through": true
             },
             {
                 "indexes": [
@@ -317,19 +323,23 @@
             },
             {
                 "indexes": [
-                    19,
-                    12
+                    15,
+                    17
                 ],
-                "asset": "Furnitures\\Decorations\\table_1",
-                "rotation": 3
+                "asset": "Furnitures\\Decorations\\plant_pot",
+                "rotation": 0,
+                "body_see_through": true,
+                "player_see_through": true
             },
             {
                 "indexes": [
-                    17,
-                    12
+                    12,
+                    17
                 ],
-                "asset": "Furnitures\\Decorations\\table_1",
-                "rotation": 3
+                "asset": "Furnitures\\Decorations\\plant_pot",
+                "rotation": 0,
+                "player_see_through": true,
+                "body_see_through": true
             }
         ]
     },
@@ -564,8 +574,8 @@
             },
             {
                 "position": [
-                    858,
-                    400
+                    1037,
+                    483
                 ],
                 "type": "Characters\\Agent_47",
                 "disguise": "Disguises\\Agent_47",

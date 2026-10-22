@@ -16,6 +16,9 @@ class Camera:
     def convert_pos(self, pos: tuple[float, float]) -> tuple[float, float]:
         return pos[0] - self.x + self.offset_x, pos[1] - self.y + self.offset_y
     
+    def reverse_pos(self, pos: tuple[float, float]) -> tuple[float, float]:
+        return pos[0] + self.x - self.offset_x, pos[1] + self.y - self.offset_y
+    
     def shake(self, magnitude: float, decrement: float = 1) -> None:
         self.shake_magnitude = magnitude
         self.shake_decrement = decrement

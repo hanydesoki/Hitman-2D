@@ -72,6 +72,16 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "type": "assets",
             "label": "Containers",
             "path": ["Furnitures", "Containers"]
+        },
+        "body_see_through": {
+            "type": "checkbox",
+            "label": "Body see through",
+            "default_value": False
+        },
+        "player_see_through": {
+            "type": "checkbox",
+            "label": "Player see through",
+            "default_value": False
         }
     },
     "food": {
@@ -164,6 +174,8 @@ class FurnitureData(TypedDict):
     indexes: list[int, int]
     asset: str
     rotation: int
+    player_see_through: NotRequired[bool]
+    body_see_through: NotRequired[bool]
 
 
 class DoorData(TypedDict):

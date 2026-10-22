@@ -126,6 +126,8 @@ class LevelCreator:
         self.selected_furniture: FurnitureData = None
         self.is_placing_furniture: bool = False
         self.selected_furniture_asset: str = None
+        self.selected_furniture_body_see_through: bool = False
+        self.selected_furniture_player_see_through: bool = False
         
         # Door menu states
         self.selected_door: DoorData = None
@@ -1037,7 +1039,9 @@ class LevelCreator:
                 self.selected_furniture = {
                     "indexes": (0, 0),
                     "asset": self.selected_furniture_asset,
-                    "rotation": 0
+                    "rotation": 0,
+                    "body_see_through": False,
+                    "player_see_through": False
                 }
                 
                 self.is_placing_furniture = True
@@ -1063,10 +1067,21 @@ class LevelCreator:
                     all_furnitures.remove(furniture)
                     self.selected_furniture = furniture
                     self.selected_furniture_asset = furniture["asset"]
+                    self.selected_furniture_body_see_through = furniture.get("body_see_through", False)
+                    self.selected_furniture_player_see_through = furniture.get("player_see_through", False)
+                    # Update checkbox
+                    Checkbox.all_widgets["body_see_through"].value = self.selected_furniture_body_see_through
+                    Checkbox.all_widgets["player_see_through"].value = self.selected_furniture_player_see_through
+                    
                     self.is_placing_furniture = True
                     has_selected_furniture = True
                     break
-                
+        
+        for checkbox_option in ["body_see_through", "player_see_through"]:
+            if Checkbox.all_widgets[checkbox_option].clicked:
+                setattr(self, "selected_furniture_" + checkbox_option, Checkbox.all_widgets[checkbox_option].value)
+                if self.selected_furniture is not None:
+                    self.selected_furniture[checkbox_option] = Checkbox.all_widgets[checkbox_option].value
         
         # Controls while placing a furniture 
         if self.is_placing_furniture and self.selected_furniture is not None:
