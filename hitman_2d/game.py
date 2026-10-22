@@ -82,6 +82,8 @@ class Game:
         
     def initial_setup(self) -> None:
         
+        level_foods: dict[str, list[Food]] = {}
+        
         for floor_level, floor_data in self.level_data["rooms"].items():
             self.doors[floor_level] = []
             self.level_rooms[floor_level] = {}
@@ -93,10 +95,12 @@ class Game:
             all_foods: list[FoodData] = get_from_dict(self.level_data, ["food", floor_level], [])[:]
             
             floor_foods: list[Food] = []
+            level_foods[floor_level] = floor_foods
             
             for room_id, room_data in floor_data.items():
+                
                 room_furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]] = []
-                room_npcs: list[NPC] = []
+                # room_npcs: list[NPC] = []
                 room_walls: list[pygame.Rect] = []
                 room_foods: list[Food] = []
                 
@@ -232,70 +236,8 @@ class Game:
                         room_foods.append(new_food)
                         all_foods.remove(food_data)
                         floor_foods.append(new_food)
-                                 
-                # Place NPC and player
-                for npc_data in all_npcs[:]:
-                    if (
-                        ((room_data["indexes"][0] * TILE_SIZE) <= npc_data["position"][0] <= ((room_data["indexes"][0] + room_data["width"]) * TILE_SIZE))
-                        and  
-                        ((room_data["indexes"][1] * TILE_SIZE) <= npc_data["position"][1] <= ((room_data["indexes"][1] + room_data["height"]) * TILE_SIZE))
-                    ):
-                        is_player: bool = npc_data.get("is_player", False)
-                        is_guard: bool = npc_data.get("is_guard", False)
-                        is_target: bool = npc_data.get("is_target", False)
-                        
-                        disguise_surfaces: dict[str, pygame.Surface] = get_from_dict(self.assets, npc_data["disguise"].split(os.path.sep), {})
-                        
-                        disguise_data: DisguiseData = {
-                            "name": npc_data["disguise"].split(os.path.sep)[1],
-                            **disguise_surfaces
-                        }
-                        
-                        character_surfaces: dict[str, pygame.Surface] = get_from_dict(self.assets, npc_data["type"].split(os.path.sep), {})
-                                                
-                        character_data: CharacterData = {
-                            "name": npc_data["type"].split(os.path.sep)[1],
-                            **character_surfaces
-                        }
-                        
-                        # print(disguise_data)
-                        
-                        NPCClass = Player if is_player else (Guard if is_guard else Civilian)
-                        
-                        # Create NPC paths
-                        npc_paths: list[NPCPathData] = npc_data.get("path", [])
-                        
-                        for path in npc_paths:
-                            # Check food interaction
-                            if path["action_type"] == NPCActionType.food_interaction:
-                                for food in floor_foods:
-                                    if food.rect.collidepoint(path["position"]):
-                                        path["position"] = food.trigger_rect.center
-                                        path["metadata"] = {
-                                            "food": food
-                                        }
-                                        break
-                                    
-                        
-                        new_npc = NPCClass(
-                            self,
-                            npc_data["position"][0],
-                            npc_data["position"][1],
-                            npc_data["rotation"] * 90,
-                            disguise=disguise_data,
-                            character=character_data,
-                            is_target=is_target,
-                            room_id=room_id,
-                            floor_id=floor_level,
-                            paths=npc_paths
-                        )
-                        
-                        if is_player and self.player is None:
-                            self.player = new_npc
-                        else:
-                            room_npcs.append(new_npc)
-                        
-                        all_npcs.remove(npc_data)
+                        # print("food_added", new_food)
+
                 
                 room: Room = {
                     "room_id": room_id,
@@ -306,7 +248,8 @@ class Game:
                     "surface": room_surface,
                     "walls": room_walls,
                     "position": room_position,
-                    "npcs": room_npcs,
+                    # "npcs": room_npcs,
+                    "npcs": [],
                     "doors": [],
                     "foods": room_foods,
                     "rect": pygame.Rect(*room_position, pixel_width, pixel_height),
@@ -389,7 +332,79 @@ class Game:
                 self.room_graph_links[floor_level][room_2_id].append(room_1_id)
             
             all_npcs: list[NPCData] = get_from_dict(self.level_data, ["npc", floor_level], [])[:]
-                
+        
+            # Place NPC and player
+            for npc_data in all_npcs[:]:
+                # print(npc_data)
+                for room_id, room_data in floor_data.items():
+                    if (
+                        ((room_data["indexes"][0] * TILE_SIZE) <= npc_data["position"][0] <= ((room_data["indexes"][0] + room_data["width"]) * TILE_SIZE))
+                        and  
+                        ((room_data["indexes"][1] * TILE_SIZE) <= npc_data["position"][1] <= ((room_data["indexes"][1] + room_data["height"]) * TILE_SIZE))
+                    ):
+                        is_player: bool = npc_data.get("is_player", False)
+                        is_guard: bool = npc_data.get("is_guard", False)
+                        is_target: bool = npc_data.get("is_target", False)
+                        
+                        disguise_surfaces: dict[str, pygame.Surface] = get_from_dict(self.assets, npc_data["disguise"].split(os.path.sep), {})
+                        
+                        disguise_data: DisguiseData = {
+                            "name": npc_data["disguise"].split(os.path.sep)[1],
+                            **disguise_surfaces
+                        }
+                        
+                        character_surfaces: dict[str, pygame.Surface] = get_from_dict(self.assets, npc_data["type"].split(os.path.sep), {})
+                                                
+                        character_data: CharacterData = {
+                            "name": npc_data["type"].split(os.path.sep)[1],
+                            **character_surfaces
+                        }
+                        
+                        # print(disguise_data)
+                        
+                        NPCClass = Player if is_player else (Guard if is_guard else Civilian)
+                        
+                        # Create NPC paths
+                        npc_paths: list[NPCPathData] = npc_data.get("path", [])
+                        
+                        for path in npc_paths:
+                            # Check food interaction
+                            if path["action_type"] == NPCActionType.food_interaction:
+                                # print("food interaction")
+                                for food in level_foods[floor_level]:
+                                    # print(food.rect.center)
+                                    if food.rect.collidepoint(path["position"]):
+                                        path["position"] = food.trigger_rect.center
+                                        path["metadata"] = {
+                                            "food": food
+                                        }
+                                        break
+                                
+                        
+                        new_npc = NPCClass(
+                            self,
+                            npc_data["position"][0],
+                            npc_data["position"][1],
+                            npc_data["rotation"] * 90,
+                            disguise=disguise_data,
+                            character=character_data,
+                            is_target=is_target,
+                            room_id=room_id,
+                            floor_id=floor_level,
+                            paths=npc_paths
+                        )
+                        
+                        
+                        if is_player and self.player is None:
+                            self.player = new_npc
+                        else:
+                            self.level_rooms[floor_level][room_id]["npcs"].append(new_npc)
+                        
+                        all_npcs.remove(npc_data)
+                        
+                    
+                    
+                    
         
         self.current_floor = "0"
         
