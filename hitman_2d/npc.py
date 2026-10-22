@@ -595,7 +595,7 @@ class GameCharacter:
         
         self.dragged_body.x, self.dragged_body.y = self.rect.center
         
-    def _scan_line_of_sight(self) -> None:
+    def _scan_line_of_sight(self, player_see_through: bool = False, body_see_through: bool = False) -> None:
         start_pos_x = self.current_room["position"][0] + TILE_SIZE
         end_pos_x = self.current_room["position"][0] + self.current_room["pixel_width"] - TILE_SIZE
         
@@ -607,7 +607,7 @@ class GameCharacter:
         for x in range(start_pos_x, end_pos_x, 10):
             for y in range(start_pos_y, end_pos_y, 10):
                 pos = (x, y)
-                self._line_of_sight_points_debug.append((*pos, self.can_see_point(pos)))
+                self._line_of_sight_points_debug.append((*pos, self.can_see_point(pos, player_see_through, body_see_through)))
         
     @property
     def current_room(self) -> Room:
@@ -779,7 +779,7 @@ class Player(GameCharacter):
             self.execute_selected_action()
             
         if pygame.key.get_just_released()[pygame.K_l]:
-            self._scan_line_of_sight()
+            self._scan_line_of_sight(player_see_through=False, body_see_through=False)
             
         if pygame.key.get_just_released()[pygame.K_c]:
             self._line_of_sight_points_debug.clear()
