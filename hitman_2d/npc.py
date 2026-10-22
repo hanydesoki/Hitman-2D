@@ -122,6 +122,8 @@ class GameCharacter:
         self.dragged_body: "GameCharacter" | None = None
         
         self.metadata: dict = {}
+        
+        self._line_of_sight_points_debug: list[tuple[float, float, bool]] = []
     
     def udpate_inconsious_surf(self) -> None:
         surf_head = self.character["face"].copy()
@@ -593,6 +595,20 @@ class GameCharacter:
         
         self.dragged_body.x, self.dragged_body.y = self.rect.center
         
+    def _scan_line_of_sight(self) -> None:
+        start_pos_x = self.current_room["position"][0] + TILE_SIZE
+        end_pos_x = self.current_room["position"][0] + self.current_room["pixel_width"] - TILE_SIZE
+        
+        start_pos_y = self.current_room["position"][1] + TILE_SIZE
+        end_pos_y = self.current_room["position"][1] + self.current_room["pixel_height"] - TILE_SIZE
+        
+        step = 10
+        self._line_of_sight_points_debug.clear()
+        for x in range(start_pos_x, end_pos_x, 10):
+            for y in range(start_pos_y, end_pos_y, 10):
+                pos = (x, y)
+                self._line_of_sight_points_debug.append((*pos, self.can_see_point(pos)))
+        
     @property
     def current_room(self) -> Room:
         return self.game.level_rooms[self.floor_id][self.room_id]
@@ -761,6 +777,12 @@ class Player(GameCharacter):
         # Pressing Space will attempt to execute the current selected action in the topleft menu
         if pygame.key.get_just_released()[pygame.K_SPACE]:
             self.execute_selected_action()
+            
+        if pygame.key.get_just_released()[pygame.K_l]:
+            self._scan_line_of_sight()
+            
+        if pygame.key.get_just_released()[pygame.K_c]:
+            self._line_of_sight_points_debug.clear()
     
     def execute_selected_action(self) -> None:
         if (not self.available_actions or self.action_menu_index is None): return
@@ -892,7 +914,15 @@ class Player(GameCharacter):
             "green" if self.can_see_point(mouse_pos_game) else "red",
             start_pos=self.game.camera.convert_pos((self.x, self.y)),
             end_pos=mouse_pos,
-        ) 
+        )
+        
+        for x, y, can_see in self._line_of_sight_points_debug:
+            pygame.draw.circle(
+                self.game.window,
+                "green" if can_see else "red",
+                self.game.camera.convert_pos((x, y)),
+                2
+            )
             
 class Civilian(NPC):
     pass
