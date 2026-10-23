@@ -1402,18 +1402,25 @@ class LevelCreator:
             if selectable_asset.is_clicked() or (self.selected_npc_type is None or self.selected_npc_disguise is None):
                 if selectable_asset.key.startswith("Characters"):
                     self.selected_npc_type = os.path.sep.join(selectable_asset.key.split(os.path.sep)[:-1])
+                    if self.selected_npc is not None:
+                        self.selected_npc["type"] = self.selected_npc_type
+                        
                 elif selectable_asset.key.startswith("Disguise"):
                     self.selected_npc_disguise = os.path.sep.join(selectable_asset.key.split(os.path.sep)[:-1])
+                    if self.selected_npc is not None:
+                        self.selected_npc["disguise"] = self.selected_npc_disguise
                 
-                self.selected_npc = {
-                    "position": (0, 0),
-                    "type": self.selected_npc_type,
-                    "disguise": self.selected_npc_disguise,
-                    "is_target": False,
-                    "is_guard": False,
-                    "is_player": False,
-                    "rotation": 0
-                }
+                if self.selected_npc is None:
+                    self.selected_npc = {
+                        "position": (0, 0),
+                        "type": self.selected_npc_type,
+                        "disguise": self.selected_npc_disguise,
+                        "is_target": False,
+                        "is_guard": False,
+                        "is_player": False,
+                        "rotation": 0
+                    }
+                
                 
                 self.is_placing_npc = True
         

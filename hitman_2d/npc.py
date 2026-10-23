@@ -778,7 +778,8 @@ class Player(GameCharacter):
         if pygame.key.get_just_released()[pygame.K_SPACE]:
             self.execute_selected_action()
             
-        if pygame.key.get_just_released()[pygame.K_l]:
+        # if pygame.key.get_just_released()[pygame.K_l]:
+        if key_pressed[pygame.K_l]:
             self._scan_line_of_sight(player_see_through=False, body_see_through=False)
             
         if pygame.key.get_just_released()[pygame.K_c]:
