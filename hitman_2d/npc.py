@@ -197,10 +197,7 @@ class GameCharacter:
         
     def manage_movement(self) -> None:
         
-        if self.locked or self.inconsious: 
-            self.vx = 0
-            self.vy = 0
-            return
+        if self.locked: return
         
         if self.manage_focus_transitions(): return
         
@@ -481,16 +478,21 @@ class GameCharacter:
             if poison_type == 1: # Sedative
                 self.inconsious = True
                 self.sleeping = True
+                self.stop_moving()
             elif poison_type == 2: # Emetic
                 # TODO: Make character sick and search for a throw up area
                 print("Sick")
             elif poison_type == 3: # Lethal
                 self.inconsious = True
                 self.alive = False
+                self.stop_moving()
              
-        self.game.scheduler.add(poison_npc, 60 * 5)
+        self.game.scheduler.add(poison_npc, 60 * 3)
             
-            
+    def stop_moving(self) -> None:
+        self.vx = 0
+        self.vy = 0
+      
     def create_pathfinding(self, from_position: tuple[float, float], to_position: tuple[float, float]) -> None:
         
         start: tuple[int, int] = (
@@ -690,7 +692,7 @@ class Player(GameCharacter):
             
         # Check if player is inside a food trigger
         for food in self.current_room["foods"]:
-            if food.trigger_rect.collidepoint((self.x, self.y)):
+            if not food.poisonned and food.trigger_rect.collidepoint((self.x, self.y)):
                 # TODO: Check player inventory for poisons
                 self.available_actions["lethal_poison_food"] = (food, 3)
                 self.available_actions["emetic_poison_food"] = (food, 2)
