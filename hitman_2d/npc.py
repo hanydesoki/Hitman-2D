@@ -47,9 +47,9 @@ class AvailableActions(TypedDict):
     fiber_wire_npc: NotRequired[NPC]
     knock_out_npc: NotRequired[NPC]
     sedate_npc: NotRequired[NPC]
-    lethal_poison_food: NotRequired[Food]
-    emetic_poison_food: NotRequired[Food]
-    sedate_poison_food: NotRequired[Food]
+    lethal_poison_food: NotRequired[tuple[Food, int]]
+    emetic_poison_food: NotRequired[tuple[Food, int]]
+    sedate_poison_food: NotRequired[tuple[Food, int]]
     drag_body: NotRequired[NPC]
     release_body: NotRequired[NPC]
     swap_disguise: NotRequired[NPC]
@@ -197,7 +197,10 @@ class GameCharacter:
         
     def manage_movement(self) -> None:
         
-        if self.locked: return
+        if self.locked or self.inconsious: 
+            self.vx = 0
+            self.vy = 0
+            return
         
         if self.manage_focus_transitions(): return
         
@@ -465,7 +468,28 @@ class GameCharacter:
                 )
                 
     def eat(self, food: Food) -> None:
-        pass
+        
+        if not food.poison: return
+        
+        # print(food.poison)
+        
+        poison_type = food.poison
+        
+        food.poison = 0
+        
+        def poison_npc() -> None:
+            if poison_type == 1: # Sedative
+                self.inconsious = True
+                self.sleeping = True
+            elif poison_type == 2: # Emetic
+                # TODO: Make character sick and search for a throw up area
+                print("Sick")
+            elif poison_type == 3: # Lethal
+                self.inconsious = True
+                self.alive = False
+             
+        self.game.scheduler.add(poison_npc, 60 * 5)
+            
             
     def create_pathfinding(self, from_position: tuple[float, float], to_position: tuple[float, float]) -> None:
         
@@ -569,7 +593,7 @@ class GameCharacter:
 
         dot_product = fx * dir_x + fy * dir_y
 
-        if dot_product > 0: return False
+        if dot_product > -0.2: return False
         
         # Check all furniture intersection
         for furniture_data, _, rect in self.current_room["furnitures"]:
@@ -668,9 +692,9 @@ class Player(GameCharacter):
         for food in self.current_room["foods"]:
             if food.trigger_rect.collidepoint((self.x, self.y)):
                 # TODO: Check player inventory for poisons
-                self.available_actions["lethal_poison_food"] = food
-                self.available_actions["emetic_poison_food"] = food
-                self.available_actions["sedate_poison_food"] = food
+                self.available_actions["lethal_poison_food"] = (food, 3)
+                self.available_actions["emetic_poison_food"] = (food, 2)
+                self.available_actions["sedate_poison_food"] = (food, 1)
                 break
         
         
@@ -717,16 +741,6 @@ class Player(GameCharacter):
         
     def manage_controls(self, all_events: list[pygame.Event]) -> None:
         
-        # if pygame.key.get_just_released()[pygame.K_SPACE]:
-        #     self.focus_position(
-        #         (random.randint(100, 500), (random.randint(100, 500))),
-        #         random.randint(100, 359),
-        #         60 * 2,
-        #     )
-        
-        # if pygame.mouse.get_just_released()[0]:
-        #     mouse_pos = pygame.mouse.get_pos()
-        #     self.go_to(mouse_pos)
         
         if self.busy_frame > 0: return
         
@@ -814,6 +828,35 @@ class Player(GameCharacter):
         
         if current_action_key == "release_body":
             return self.release_body()
+        
+        if current_action_key in {"lethal_poison_food", "emetic_poison_food", "sedate_poison_food"}:
+            food, poison_type = self.available_actions[current_action_key]
+            return self.poison_food(food, poison_type)
+        
+    def poison_food(self, food: Food, poison_type: int) -> None:
+        """Apply poison on food
+
+        Args:
+            food (Food): Food object to poison
+            poison_type (int): 1: Sedative
+                               2: Emetic
+                               3: Lethal
+        """
+        if (food.trigger_rect.x != food.rect.x):
+            rotation = -90 if (food.trigger_rect.x < food.rect.x) else 90
+        else:
+            rotation = 180 if (food.trigger_rect.y < food.rect.y) else -180   
+            
+        self.focus_position(food.trigger_rect.center, rotation, 30)
+        
+        self.max_busy_frame = 60 * 2
+        self.busy_frame = self.max_busy_frame
+        
+        def apply_poison() -> None:
+            food.poison = poison_type
+            
+        self.game.scheduler.add(apply_poison, self.max_busy_frame)
+        
             
     def pacify(self, npc: "NPC", pacification_type: int, pacification_time: int) -> None:
         """Pacify any npc
