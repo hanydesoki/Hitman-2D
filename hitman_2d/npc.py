@@ -8,6 +8,7 @@ from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
 from pathfinding.core.grid import Grid, GridNode
 
 from .transition_value import TransitionValue, TransitionRotation
+from .bubble_popup_manager import BubblePopupManager
 from .utilities import find_all_paths
 from .geometry import segments_intersect
 from .settings import TILE_SIZE
@@ -110,6 +111,8 @@ class GameCharacter:
         self.busy_frame: int = 0
         self.max_busy_frame: int = 0
         
+        self.bubble_popup_manager: BubblePopupManager = BubblePopupManager(self.game, self)
+        
         self.focus_points: list[FocusPosition] = []
         self.current_pathfinding: list[pygame.Rect] = []
         self.room_to_traverse: list[str] = []
@@ -182,6 +185,8 @@ class GameCharacter:
             
             self.game.window.blit(shoulder_surf, self.game.camera.convert_pos(shoulder_rect.topleft))
             self.game.window.blit(top_head_surf, self.game.camera.convert_pos(top_head_rect.topleft))
+            
+            self.bubble_popup_manager.draw()
             
             # collision_rect = self.rect.copy()
             # collision_rect.topleft = self.game.camera.convert_pos(top_head_rect.topleft)
@@ -392,6 +397,10 @@ class GameCharacter:
                     rotation = 180 if (food.trigger_rect.y < food.rect.y) else -180   
                     
                 self.focus_position(food.trigger_rect.center, rotation, 30)
+                self.bubble_popup_manager.popup(
+                    surface=food.surf,
+                    duration=60 * 2
+                )
                 self.eat(food)
                 
                 self.current_pathfinding.clear()
@@ -643,6 +652,7 @@ class GameCharacter:
 class NPC(GameCharacter):
     
     def update(self):
+        self.bubble_popup_manager.update()
         self.manage_npc_behaviour()
         self.manage_pathfinding()
         self.manage_body_dragged()
@@ -898,6 +908,7 @@ class Player(GameCharacter):
         self.game.scheduler.add(task=incousious_npc, schedule=pacification_time)
         
     def update(self, all_events: list[pygame.Event]):
+        self.bubble_popup_manager.update()
         self.manage_available_actions()
         self.manage_body_dragged()
         self.manage_controls(all_events=all_events)
