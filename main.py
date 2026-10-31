@@ -2,6 +2,7 @@ from hitman_2d import LevelCreator, Game
 
 
 EDIT_LEVEL: bool =  False
+
 LEVEL_PATH: str = "Levels/level_1.json"
 ASSET_PATH: str = "Assets"
 
