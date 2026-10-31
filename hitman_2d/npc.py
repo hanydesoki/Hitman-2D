@@ -425,16 +425,33 @@ class GameCharacter:
             dx = next_node_rect.centerx - self.x
             dy = next_node_rect.centery - self.y
             
-            norm: float = math.sqrt(dx ** 2 + dy ** 2)
+            dist: float = math.sqrt(dx ** 2 + dy ** 2)
             
             speed = self.walk_speed
             if self.dragged_body is not None:
                 speed = self.drag_speed
             
-            self.vx = dx / norm * speed
-            self.vy = dy / norm * speed
+            # self.vx = dx / dist * speed
+            # self.vy = dy / dist * speed
             
-            self.rotation = math.degrees(math.atan2(-dy, dx) - math.pi / 2)
+            desired_x = dx / dist * speed
+            desired_y = dy / dist * speed
+            
+            steer_x = desired_x - self.vx
+            steer_y = desired_y - self.vy
+            
+            steer_magnitude = math.sqrt(steer_x ** 2 + steer_y ** 2)
+            
+            max_steer = 0.08
+            
+            if steer_magnitude > max_steer:
+                steer_x = (steer_x / steer_magnitude) * max_steer
+                steer_y = (steer_y / steer_magnitude) * max_steer
+                
+            self.vx += steer_x
+            self.vy += steer_y
+            
+            self.rotation = math.degrees(math.atan2(-self.vy, self.vx) - math.pi / 2)
             # print(self.rotation)
             
             if next_node_rect.collidepoint(self.x, self.y):
@@ -561,7 +578,43 @@ class GameCharacter:
             
             self.current_pathfinding.append(node_rect)
             
+        if len(self.current_pathfinding) > 1:
+            self.current_pathfinding.pop(0)
+            
         # print(self.current_pathfinding)
+        
+        # Remove unecessary path point so the player will move straight to main the objective if in sight
+        # cleaned_pathfinding: list[pygame.Rect] = []
+        
+        # iteration = -1
+        
+        # while iteration != 0:
+            
+        #     x_start, y_start = (self.x, self.y) if len(cleaned_pathfinding) == 0 else cleaned_pathfinding[-1].center
+
+        #     for i, path_rect in enumerate(self.current_pathfinding[::-1]):
+        #         collided: bool = False
+        #         for _, __, furniture_rect in self.current_room["furnitures"]:
+        #             if self.segment_intersect_rect(
+        #                 x_start, 
+        #                 y_start, 
+        #                 path_rect.centerx, 
+        #                 path_rect.centery, 
+        #                 rect=furniture_rect
+        #             ): 
+                        
+        #                 collided = True
+        #                 break
+                
+                
+        #         if collided:
+        #             continue
+        #         else:
+        #             iteration = i
+        #             cleaned_pathfinding.append(path_rect)
+        #             break
+        
+        # self.current_pathfinding = cleaned_pathfinding
         
     def swap_disguise(self, other: "GameCharacter") -> None:
         # print("swap")
@@ -614,6 +667,7 @@ class GameCharacter:
             if self.segment_intersect_rect(self.x, self.y, point[0], point[1], rect=rect): return False
             
         return True
+        
             
     @staticmethod
     def segment_intersect_rect(x1: float, y1: float, x2: float, y2: float, rect: pygame.Rect) -> bool:
