@@ -98,6 +98,7 @@ class BubblePopupManager:
         )
         
     def update(self) -> None:
+        # bla bla
         if not self.popup_queue: return
         
         first_popup = self.popup_queue[0]
