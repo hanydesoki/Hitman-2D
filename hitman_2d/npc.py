@@ -402,7 +402,7 @@ class GameCharacter:
                     
                 self.focus_position(food.trigger_rect.center, rotation, 30)
                 self.bubble_popup_manager.popup(
-                    surface=food.surf,
+                    source=food.surf,
                     duration=60 * 2
                 )
                 self.eat(food)
@@ -511,7 +511,7 @@ class GameCharacter:
                 self.stop_moving()
             elif poison_type == 2: # Emetic
                 # TODO: Make character sick and search for a throw up area
-                print("Sick")
+                self.bubble_popup_manager.popup("I'm gonna\nthrow up !", 50 * 2, text_color=[0, 100, 0])
             elif poison_type == 3: # Lethal
                 self.inconsious = True
                 self.alive = False

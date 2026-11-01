@@ -26,8 +26,18 @@ class BubblePopupManager:
         self.character = character
         
         self.popup_queue: list[CounterSurface] = []
+        
+        self.text_font = pygame.font.SysFont("Arial", 15)
 
-    def popup(self, surface: pygame.Surface, duration: int, padding: int = 5) -> None:
+    def popup(self, source: pygame.Surface | str, duration: int, padding: int = 5, text_color=None) -> None:
+        
+        
+        
+        if isinstance(source, str):
+            surface = self.text_font.render(source, False, text_color or [1, 1, 1])
+        else:
+            surface = source
+        
         bubble_surf = pygame.Surface((
             surface.get_width() + 2 * padding,
             surface.get_height() + 2 * padding + 5
