@@ -1493,6 +1493,8 @@ class LevelCreator:
                     self.is_placing_npc = True
                     all_npcs.remove(self.selected_npc)
                     break
+            else:
+                self.selected_npc = None
                     
     
     def run(self) -> None:

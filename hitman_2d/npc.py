@@ -20,6 +20,7 @@ if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type h
     from .game import Room
     from .door import Door
     from .food import Food
+    from .container import Container
 
 from .settings import NPCPathData, NPCActionType
     
@@ -54,6 +55,7 @@ class AvailableActions(TypedDict):
     drag_body: NotRequired[NPC]
     release_body: NotRequired[NPC]
     swap_disguise: NotRequired[NPC]
+    hide_body: NotRequired[tuple[Container, NPC]]
     
     
 class GameCharacter:
@@ -100,6 +102,8 @@ class GameCharacter:
         self.inconsious: bool = False
         self.alive: bool = True
         self.sleeping: bool = False
+        
+        self.hidden: bool = False
         
         self.wait_time: int = 0
         self.is_waiting: bool = False
@@ -595,6 +599,7 @@ class GameCharacter:
             for i, path_rect in enumerate(self.current_pathfinding[::-1]):
                 collided: bool = False
                 for _, __, furniture_rect in self.current_room["furnitures"]:
+                    # Furniture rectangle are inflated in the raycast check to avoid NPC being stuck for a few seconds
                     inflated_furniture_rect = furniture_rect.inflate(TILE_SIZE // 2, TILE_SIZE // 2)
                     
                     if (
@@ -618,9 +623,10 @@ class GameCharacter:
                     cleaned_pathfinding.append(path_rect)
                     break
         
-        self.current_pathfinding = cleaned_pathfinding
+        if cleaned_pathfinding:
+            self.current_pathfinding = cleaned_pathfinding
         
-    def swap_disguise(self, other: "GameCharacter") -> None:
+    def swap_disguise(self, other: "GameCharacter", **focus_position) -> None:
         # print("swap")
         
         def switch_npc_disguise() -> None:
@@ -632,17 +638,21 @@ class GameCharacter:
         self.game.scheduler.add(switch_npc_disguise, 60 * 3)
         self.max_busy_frame = 60 * 3
         self.busy_frame = 60 * 3
-        self.focus_position(
-            target_position=other.rect.center, 
-            target_rotation=(other.rotation + 180) % 360, 
-            number_frames=30
-        )
+        
+        if focus_position:
+            self.focus_position(**focus_position)
+        else:
+            self.focus_position(
+                target_position=other.rect.center, 
+                target_rotation=(other.rotation + 180) % 360, 
+                number_frames=30
+            )
         
     def can_see_point(self, point: tuple[float, float], player_see_through: bool = False, body_see_through: bool = False) -> bool:
         # Check if inside the same room
         if not self.current_room["rect"].collidepoint(point): return
         
-        # TODO: Check character orientation
+        # Check character orientation
         dx = self.x - point[0]
         dy = self.y - point[1]
         
@@ -752,6 +762,8 @@ class Player(GameCharacter):
         
         self.available_actions.clear()
         
+        if self.busy_frame: return
+        
         # Check if player is close to a door
         for door in self.current_room["doors"]:
             if door.trigger_rects[self.room_id].collidepoint((self.x, self.y)):
@@ -767,6 +779,25 @@ class Player(GameCharacter):
                 self.available_actions["sedate_poison_food"] = (food, 1)
                 break
         
+        nearest_container: Container | None = None
+        for container in self.current_room["containers"]:     
+            if container.trigger_rect.colliderect(self.rect):
+                nearest_container = container
+                break
+        
+        # Player is dragging a body     
+        if self.dragged_body is not None:
+            
+            # Hide body
+            if nearest_container is not None and not nearest_container.full:
+                self.available_actions["hide_body"] = (nearest_container, self.dragged_body)
+            
+            # Release body
+            self.available_actions["release_body"] = self.dragged_body
+        else:
+            if nearest_container is not None and nearest_container.bodies:
+                for body in nearest_container.bodies:
+                    self.available_actions[f"container_swap_disguise_{body.disguise['name']}"] = (nearest_container, body)
         
         for npc in self.current_room["npcs"]:
             
@@ -774,8 +805,8 @@ class Player(GameCharacter):
                 if self.dragged_body is None and npc.rect.colliderect(self.rect):
                     self.available_actions["drag_body"] = npc
                     self.available_actions["swap_disguise"] = npc
-                elif self.dragged_body is not None:
-                    self.available_actions["release_body"] = self.dragged_body      
+                # elif self.dragged_body is not None:
+                #     self.available_actions["release_body"] = self.dragged_body      
             else:
                 dx = self.x - npc.x 
                 dy = self.y - npc.y
@@ -902,6 +933,51 @@ class Player(GameCharacter):
         if current_action_key in {"lethal_poison_food", "emetic_poison_food", "sedate_poison_food"}:
             food, poison_type = self.available_actions[current_action_key]
             return self.poison_food(food, poison_type)
+        
+        if current_action_key == "hide_body":
+            container, body = self.available_actions["hide_body"]
+            self.hide_body(body, container)
+        
+        if current_action_key.startswith("container_swap_disguise_"):
+            container: Container
+            body: NPC
+            container, body = self.available_actions[current_action_key]
+            self.swap_disguise(
+                body, 
+                target_position=container.trigger_rect.center,
+                target_rotation=container.player_rotation,
+                number_frames=30
+            )
+        
+        
+    def hide_body(self, body: NPC, container: Container) -> None:
+        
+        hide_time: int = 60 * 2
+        
+        self.release_body()
+        
+        self.focus_position(
+            target_position=container.trigger_rect.center,
+            target_rotation=container.player_rotation,
+            number_frames=hide_time
+        )
+        
+        body.focus_position(
+            target_position=container.main_rect.center,
+            target_rotation=container.player_rotation + 90,
+            number_frames=hide_time
+        )
+        
+        self.max_busy_frame = hide_time
+        self.busy_frame = hide_time
+        
+        container.bodies.append(body)
+        
+        def npc_hidden() -> None:
+            body.hidden = True
+        
+        self.game.scheduler.add(task=npc_hidden, schedule=hide_time)
+        
         
     def poison_food(self, food: Food, poison_type: int) -> None:
         """Apply poison on food

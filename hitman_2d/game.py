@@ -16,6 +16,7 @@ from .camera import Camera
 from .npc import NPC, Player, Guard, Civilian, DisguiseData, CharacterData
 from .door import Door, DoorSurfaces
 from .food import Food
+from .container import Container
 from .scheduler import Scheduler
 
 
@@ -35,6 +36,7 @@ class Room(TypedDict):
     furnitures: list[tuple[FurnitureData, pygame.Surface, pygame.Rect]]
     npcs: list[NPC]
     doors: list[Door]
+    containers: list[Container]
     rect: pygame.Rect
     pathfinding_grid: list[list[int]]
     foods: list[Food]
@@ -103,6 +105,7 @@ class Game:
                 # room_npcs: list[NPC] = []
                 room_walls: list[pygame.Rect] = []
                 room_foods: list[Food] = []
+                room_containers: list[Container] = []
                 
                 # Room Surface
                 pixel_width: int = room_data["width"] * TILE_SIZE
@@ -188,7 +191,21 @@ class Game:
                         )
                         
                         room_surface.blit(furniture_surf, relative_furniture_position)
-                        all_furnitures.remove(furniture)
+                        
+                        # Place a container object if it is one
+                        if furniture["asset"].split(os.path.sep)[-2] == "Containers":
+                            container_main_rect = furniture_rect.copy()
+                            if furniture["rotation"] == 0:
+                                container_trigger_rect = pygame.Rect(furniture_rect.left, furniture_rect.bottom, furniture_rect.width, TILE_SIZE)
+                            elif furniture["rotation"] == 2:
+                                container_trigger_rect = pygame.Rect(furniture_rect.left, furniture_rect.top - TILE_SIZE, furniture_rect.width, TILE_SIZE)
+                            elif furniture["rotation"] == 3:
+                                container_trigger_rect = pygame.Rect(furniture_rect.left - TILE_SIZE, furniture_rect.top, TILE_SIZE, furniture_rect.height)
+                            else: 
+                                container_trigger_rect = pygame.Rect(furniture_rect.right, furniture_rect.top, TILE_SIZE, furniture_rect.height)
+                                
+                            new_container = Container(self, container_main_rect, container_trigger_rect, capacity=1)
+                            room_containers.append(new_container)
                         
                         furniture_tile_width: int = round(furniture_rect.width / TILE_SIZE)
                         furniture_tile_height: int = round(furniture_rect.height / TILE_SIZE)
@@ -207,6 +224,8 @@ class Game:
                         for i in range(furniture_start_i, furniture_start_i + furniture_tile_width):
                             for j in range(furniture_start_j, furniture_start_j + furniture_tile_height):
                                 pathfinding_grid[j][i] = 0
+                                
+                        all_furnitures.remove(furniture)
                     
                 # Place Food
                 for food_data in all_foods[:]:
@@ -251,6 +270,7 @@ class Game:
                     # "npcs": room_npcs,
                     "npcs": [],
                     "doors": [],
+                    "containers": room_containers,
                     "foods": room_foods,
                     "rect": pygame.Rect(*room_position, pixel_width, pixel_height),
                     "pathfinding_grid": pathfinding_grid
@@ -449,7 +469,9 @@ class Game:
             
             is_selected_action: bool = self.player.action_menu_index == action_index
             
-            text_surf = self.fonts["player_actions"].render(action_key, True, "lightblue" if is_selected_action else "white")
+            text = action_key.replace("_", " ").title()
+            
+            text_surf = self.fonts["player_actions"].render(text, True, "lightblue" if is_selected_action else "white")
             self.window.blit(text_surf, (10, top))
             top += text_surf.get_height() + 10
         
@@ -467,7 +489,8 @@ class Game:
     def draw_npcs(self) -> None:
         for room in self.level_rooms[self.current_floor].values():
             for npc in room["npcs"]:
-                npc.draw()
+                if not npc.hidden:
+                    npc.draw()
                 
         self.player.draw()
     
