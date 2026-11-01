@@ -1,7 +1,7 @@
 # import random
 import math
 import random
-from typing import TypedDict, TYPE_CHECKING, Generator, NotRequired
+from typing import TypedDict, TYPE_CHECKING, Generator, NotRequired, Callable
 
 import pygame
 from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
@@ -275,7 +275,81 @@ class GameCharacter:
             self.focus_points.pop(0)
         
         return True
+    
+    def find_nearest_element[P](self, elements: list[P], key: Callable[[P], tuple[int, int]] = None) -> P | None:
         
+        if len(elements) == 0: return None
+        
+        check_only_current_room: bool = False
+        elements_found: list[tuple[P, tuple[int, int], list[str], float]] = []
+        
+        min_room_to_traverse: int = 9999
+        
+        for element in elements:
+            position: tuple[int, int] = key(element) if key is not None else element
+            
+            # Check if element is in the same room. 
+            # If so remove all found before if it is the first time and never
+            # search outside of the room again
+            if self.current_room["rect"].collidepoint(*position):
+                
+                if not check_only_current_room:
+                    elements_found.clear()
+                    check_only_current_room = True
+                
+                # Compute the distance between the character and the element 
+                # (square distance used here since it is only used for comparisons)
+                squared_dist = (position[0] - self.x) ** 2 + (position[1] - self.y) ** 2
+                elements_found.append((element, position, [self.room_id], squared_dist))
+                min_room_to_traverse = 1
+            
+            # Element is outside of the room
+            elif not check_only_current_room:
+                
+                # Get the element room
+                target_room: str = None
+                for room_id, room in self.game.level_rooms[self.floor_id].items():
+                    if room["rect"].collidepoint(position):
+                        target_room = room_id
+                        break
+                    
+                
+                if target_room is None: continue
+                
+                # Find all the room to traverse
+                
+                path = find_all_paths(self.game.room_graph_links[self.floor_id], start=self.room_id, end=target_room)[0]
+                
+                # Remove already found elements when we found a path shorter than the others
+                if len(path) < min_room_to_traverse:
+                    elements_found.clear()
+                
+                # Add the element
+                if len(path) <= min_room_to_traverse:
+                    
+                    # Find the leading door to the element
+                    leading_door: Door = None
+                    for door in self.game.level_rooms[self.floor_id][path[-1]]["doors"]:
+                        if path[-2] in door.trigger_rects:
+                            leading_door = door
+                            break
+                    
+                    if leading_door is None: continue
+                    
+                    # Compute the distance between the leading door and the element 
+                    # (square distance used here since it is only used for comparisons)
+                    trigger_center = leading_door.trigger_rects[path[-1]].center
+                    
+                    squared_dist = (position[0] - trigger_center[0]) ** 2 + (position[1] - trigger_center[1]) ** 2
+                    
+                    elements_found.append((element, position, path, squared_dist))
+                    min_room_to_traverse = len(path)
+        
+        # print([e for e in elements_found])
+        # Get the element with the shortest dist   
+        return min(elements_found, key=lambda e: e[3])[0]
+        
+
     def pass_door(self, door: Door) -> None:
         
         self.vx = 0

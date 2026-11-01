@@ -449,9 +449,9 @@ class Game:
             for door in self.doors[self.current_floor]:
                 door.open_door()
                 
-        if pygame.key.get_pressed()[pygame.K_c]:
-            for door in self.doors[self.current_floor]:
-                door.cloose_door()
+        # if pygame.key.get_pressed()[pygame.K_c]:
+        #     for door in self.doors[self.current_floor]:
+        #         door.cloose_door()
             
         
     def draw(self) -> None:
@@ -487,10 +487,38 @@ class Game:
             door.draw()
         
     def draw_npcs(self) -> None:
+        
+        consious_floor_npcs: list[NPC] = []
+        
+        key_pressed = pygame.key.get_pressed()
+        
         for room in self.level_rooms[self.current_floor].values():
             for npc in room["npcs"]:
+                
                 if not npc.hidden:
                     npc.draw()
+                    
+                if npc.metadata.get("marked_nearest", False):
+                    rect_copy = npc.rect.copy()
+                    rect_copy.topleft = self.camera.convert_pos(rect_copy.topleft)
+                    pygame.draw.rect(
+                        self.window,
+                        "blue",
+                        rect_copy,
+                        width=2
+                    )
+                
+                # For Debug
+                if key_pressed[pygame.K_c] and "marked_nearest" in npc.metadata:
+                    del npc.metadata["marked_nearest"]
+                    
+                if not npc.inconsious: consious_floor_npcs.append(npc)
+        
+        # For Debug       
+        if key_pressed[pygame.K_n]:
+            nearest_npc = self.player.find_nearest_element(consious_floor_npcs, lambda n: n.rect.center)
+            if nearest_npc is not None:
+                nearest_npc.metadata["marked_nearest"] = True
                 
         self.player.draw()
     
