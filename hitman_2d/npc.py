@@ -584,37 +584,41 @@ class GameCharacter:
         # print(self.current_pathfinding)
         
         # Remove unecessary path point so the player will move straight to main the objective if in sight
-        # cleaned_pathfinding: list[pygame.Rect] = []
+        cleaned_pathfinding: list[pygame.Rect] = []
         
-        # iteration = -1
+        iteration = -1
         
-        # while iteration != 0:
+        while iteration != 0:
             
-        #     x_start, y_start = (self.x, self.y) if len(cleaned_pathfinding) == 0 else cleaned_pathfinding[-1].center
+            rect_start = self.rect if len(cleaned_pathfinding) == 0 else cleaned_pathfinding[-1]
 
-        #     for i, path_rect in enumerate(self.current_pathfinding[::-1]):
-        #         collided: bool = False
-        #         for _, __, furniture_rect in self.current_room["furnitures"]:
-        #             if self.segment_intersect_rect(
-        #                 x_start, 
-        #                 y_start, 
-        #                 path_rect.centerx, 
-        #                 path_rect.centery, 
-        #                 rect=furniture_rect
-        #             ): 
-                        
-        #                 collided = True
-        #                 break
+            for i, path_rect in enumerate(self.current_pathfinding[::-1]):
+                collided: bool = False
+                for _, __, furniture_rect in self.current_room["furnitures"]:
+                    inflated_furniture_rect = furniture_rect.inflate(TILE_SIZE // 2, TILE_SIZE // 2)
+                    
+                    if (
+                        self.segment_intersect_rect(*rect_start.topleft, *path_rect.topleft, rect=inflated_furniture_rect)
+                        or
+                        self.segment_intersect_rect(*rect_start.topright, *path_rect.topright, rect=inflated_furniture_rect)
+                        or
+                        self.segment_intersect_rect(*rect_start.bottomleft, *path_rect.bottomleft, rect=inflated_furniture_rect)
+                        or
+                        self.segment_intersect_rect(*rect_start.bottomright, *path_rect.bottomright, rect=inflated_furniture_rect)
+                                                
+                    ): 
+                        collided = True
+                        break
                 
                 
-        #         if collided:
-        #             continue
-        #         else:
-        #             iteration = i
-        #             cleaned_pathfinding.append(path_rect)
-        #             break
+                if collided:
+                    continue
+                else:
+                    iteration = i
+                    cleaned_pathfinding.append(path_rect)
+                    break
         
-        # self.current_pathfinding = cleaned_pathfinding
+        self.current_pathfinding = cleaned_pathfinding
         
     def swap_disguise(self, other: "GameCharacter") -> None:
         # print("swap")
