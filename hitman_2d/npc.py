@@ -133,9 +133,14 @@ class GameCharacter:
         
         self._line_of_sight_points_debug: list[tuple[float, float, bool]] = []
         
-    def set_busy(self, busy_frames: int) -> None:
+        self.doing_illegal_action: bool = False
+        
+    def set_busy(self, busy_frames: int, illegal: bool = False) -> None:
         self.max_busy_frame = busy_frames
         self.busy_frame = busy_frames
+        
+        if illegal:
+            self.doing_illegal_action = illegal
     
     def udpate_inconsious_surf(self) -> None:
         surf_head = self.character["face"].copy()
@@ -445,7 +450,7 @@ class GameCharacter:
             )
             # self.busy_frame = 30
             # self.max_busy_frame = 30
-            self.set_busy(30)
+            self.set_busy(30, illegal=True)
             
     def release_body(self) -> None:
         self.dragged_body = None
@@ -648,7 +653,7 @@ class GameCharacter:
         self.game.scheduler.add(switch_npc_disguise, 60 * 3)
         # self.max_busy_frame = 60 * 3
         # self.busy_frame = 60 * 3
-        self.set_busy(60 * 3)
+        self.set_busy(60 * 3, illegal=True)
         
         if focus_position:
             self.focus_position(**focus_position)
@@ -742,14 +747,18 @@ class GameCharacter:
  
 class NPC(GameCharacter):
     
-    used_throw_up_area: set[int] = set()
+    # used_throw_up_area: set[int] = set()
+    all_npcs: list["NPC"] = []
     
     def __init__(self, game, x, y, rotation, disguise, character, room_id, floor_id, is_target = False, paths = None, weapon = None):
         super().__init__(game, x, y, rotation, disguise, character, room_id, floor_id, is_target, paths, weapon)
         
-        self.current_state = NPCState.initial_loop
+        self._current_state = NPCState.initial_loop
         
-        self.throw_up_area: ThrowUpAreaData | None = None
+        self.all_npcs.append(self)
+        
+    def set_state(self, new_state: NPCState) -> None:
+        self._current_state = new_state
     
     def update(self):
         self.bubble_popup_manager.update()
@@ -794,8 +803,8 @@ class NPC(GameCharacter):
                 self.wait_time = 0
                 self.is_waiting = False
                 
-                if self.current_state == NPCState.throwing_up:
-                    self.current_state = NPCState.initial_loop
+                if self._current_state == NPCState.throwing_up:
+                    self.set_state(NPCState.initial_loop)
                 
         # Eat food
         if self.current_pathfinding and self.paths and (self.paths[0]["action_type"] == NPCActionType.food_interaction):
@@ -821,15 +830,16 @@ class NPC(GameCharacter):
                 self.is_waiting = True
                     
         # Going to throw up
-        if self.current_state == NPCState.going_for_throw_up and self.throw_up_area is not None:
-            if self.throw_up_area["indexes"] == self.current_indexes:
-                self.current_state = NPCState.throwing_up
+        if self._current_state == NPCState.going_for_throw_up and self.paths and self.paths[0]["action_type"] == NPCActionType.throw_up:
+            throw_up_area: ThrowUpAreaData = self.paths[0].get("metadata", {}).get("throw_up", None)
+            if throw_up_area is not None and throw_up_area["indexes"] == self.current_indexes:
+                self.set_state(NPCState.throwing_up)
                 self.focus_position(
                     target_position=(
-                        self.throw_up_area["indexes"][0] * TILE_SIZE + int(TILE_SIZE / 2),
-                        self.throw_up_area["indexes"][1] * TILE_SIZE + int(TILE_SIZE / 2)
+                        throw_up_area["indexes"][0] * TILE_SIZE + int(TILE_SIZE / 2),
+                        throw_up_area["indexes"][1] * TILE_SIZE + int(TILE_SIZE / 2)
                     ),
-                    target_rotation=self.throw_up_area["rotation"] * 90,
+                    target_rotation=throw_up_area["rotation"] * 90,
                     number_frames=30
                 )
                 
@@ -868,10 +878,12 @@ class NPC(GameCharacter):
         self.game.scheduler.add(poison_npc, 60 * 3)
         
     def seek_and_go_to_throw_up_area(self) -> None:
+        
         all_floor_throw_up: list[ThrowUpAreaData] = get_from_dict(self.game.level_data, ["throw_up", self.floor_id], [])
+        used_throw_up_areas = self.get_all_used_throw_up_areas()
         
         nearset_throw_up_area = self.find_nearest_element(
-            all_floor_throw_up, 
+            [t for t in all_floor_throw_up if t not in used_throw_up_areas], 
             lambda t: (t["indexes"][0] * TILE_SIZE, t["indexes"][1] * TILE_SIZE)
         )
         
@@ -879,11 +891,12 @@ class NPC(GameCharacter):
             self.bubble_popup_manager.popup("Ok nevermind it will be fine...", 60 * 2)
             return
         
-        self.current_state = NPCState.going_for_throw_up
+        # self._current_state = NPCState.going_for_throw_up
+        self.set_state(NPCState.going_for_throw_up)
         self.paths.clear()
         self.paths.append({
             "action_type": NPCActionType.throw_up,
-            "metadata": {},
+            "metadata": {"throw_up": nearset_throw_up_area},
             "rotation": nearset_throw_up_area["rotation"],
             "position": (
                 nearset_throw_up_area["indexes"][0] * TILE_SIZE + int(TILE_SIZE / 2), 
@@ -892,9 +905,6 @@ class NPC(GameCharacter):
             "time": 60 * 60
         })
         
-        self.throw_up_area = nearset_throw_up_area
-        
-        # self.used_throw_up_area.add(id(nearset_throw_up_area))
         self.interrupt_pathfinding()
         
     def interrupt_pathfinding(self) -> None:
@@ -903,6 +913,18 @@ class NPC(GameCharacter):
         self.next_door = None
         self.target_room_position = None
         self.is_waiting = False
+    
+    @classmethod        
+    def get_all_used_throw_up_areas(cls) -> list[ThrowUpAreaData]:
+        used_throw_up_areas: list[ThrowUpAreaData] = []
+        for npc in cls.all_npcs:
+            if npc.paths and npc.paths[0]["action_type"] == NPCActionType.throw_up:
+                throw_up_area: ThrowUpAreaData | None = npc.paths[0].get("metadata", {}).get("throw_up", None)
+                if throw_up_area is not None:
+                    used_throw_up_areas.append(throw_up_area)
+                    
+        return used_throw_up_areas
+        
         
 class Player(GameCharacter):
     
@@ -1113,7 +1135,6 @@ class Player(GameCharacter):
                 number_frames=30
             )
         
-        
     def hide_body(self, body: NPC, container: Container) -> None:
         
         hide_time: int = 60 * 2
@@ -1134,7 +1155,7 @@ class Player(GameCharacter):
         
         # self.max_busy_frame = hide_time
         # self.busy_frame = hide_time
-        self.set_busy(hide_time)
+        self.set_busy(hide_time, illegal=True)
         
         container.bodies.append(body)
         
@@ -1162,7 +1183,7 @@ class Player(GameCharacter):
         
         # self.max_busy_frame = 60 * 2
         # self.busy_frame = self.max_busy_frame
-        self.set_busy(60 * 2)
+        self.set_busy(60 * 2, illegal=True)
         
         def apply_poison() -> None:
             food.poison = poison_type
@@ -1192,7 +1213,7 @@ class Player(GameCharacter):
         npc.vy = 0
         # self.max_busy_frame = pacification_time
         # self.busy_frame = self.max_busy_frame
-        self.set_busy(pacification_time)
+        self.set_busy(pacification_time, illegal=True)
         
         def incousious_npc() -> None:
             npc.inconsious = True
@@ -1223,8 +1244,9 @@ class Player(GameCharacter):
     def manage_busy(self) -> None:
         self.busy_frame = max(0, self.busy_frame - 1)
         
-        if self.busy_frame == 0:
+        if self.busy_frame == 0 and self.max_busy_frame:
             self.max_busy_frame = 0
+            self.doing_illegal_action = False
             
     def pass_door(self, door):
         
