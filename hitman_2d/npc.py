@@ -1,6 +1,8 @@
 # import random
 import math
 import random
+import time
+import copy
 from typing import TypedDict, TYPE_CHECKING, Generator, NotRequired, Callable
 from enum import Enum
 
@@ -58,6 +60,10 @@ class AvailableActions(TypedDict):
     swap_disguise: NotRequired[NPC]
     hide_body: NotRequired[tuple[Container, NPC]]
     
+class CompromiseInfo(TypedDict):
+    time: int
+    position: tuple[int, int]
+    disguise: str
     
 class GameCharacter:
     
@@ -756,6 +762,34 @@ class NPC(GameCharacter):
         self._current_state = NPCState.initial_loop
         
         self.all_npcs.append(self)
+        
+        self.compromise_infos: dict[str, CompromiseInfo] = {}
+        
+    def compromise_player(self) -> None:
+        new_compromise_info: CompromiseInfo = {
+            "disguise": self.game.player.disguise["name"],
+            "time": time.time(),
+            "position": self.game.player.rect.center
+        }
+        
+        self.compromise_infos[self.game.player.disguise["name"]] = new_compromise_info
+        
+    def share_compromise_infos(self, other: "NPC") -> None:
+        compromise_disguises = set(self.compromise_infos).union(other.compromise_infos)
+        
+        shared_compromised_infos: dict[str, CompromiseInfo] = {}
+        
+        for disguise in compromise_disguises:
+            npc_disguise_compromise_time = self.compromise_infos.get(disguise, {}).get("time", 0)
+            other_disguise_compromise_time = self.compromise_infos.get(disguise, {}).get("time", 0)
+            
+            if npc_disguise_compromise_time >= other_disguise_compromise_time:
+                shared_compromised_infos[disguise] = self.compromise_infos[disguise].copy()
+            else:
+                shared_compromised_infos[disguise] = other.compromise_infos[disguise].copy()
+                
+        self.compromise_infos = shared_compromised_infos
+        other.compromise_infos = shared_compromised_infos
         
     def set_state(self, new_state: NPCState) -> None:
         self._current_state = new_state
