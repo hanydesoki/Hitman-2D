@@ -10,9 +10,9 @@ from pathfinding.core.grid import Grid, GridNode
 
 from .transition_value import TransitionValue, TransitionRotation
 from .bubble_popup_manager import BubblePopupManager
-from .utilities import find_all_paths
+from .utilities import find_all_paths, get_from_dict
 from .geometry import segments_intersect
-from .settings import TILE_SIZE
+from .settings import TILE_SIZE, ThrowUpAreaData
 
 
 if TYPE_CHECKING: # Always false: Avoid circular loop so we can use it as type hinting
@@ -132,6 +132,10 @@ class GameCharacter:
         self.metadata: dict = {}
         
         self._line_of_sight_points_debug: list[tuple[float, float, bool]] = []
+        
+    def set_busy(self, busy_frames: int) -> None:
+        self.max_busy_frame = busy_frames
+        self.busy_frame = busy_frames
     
     def udpate_inconsious_surf(self) -> None:
         surf_head = self.character["face"].copy()
@@ -439,61 +443,12 @@ class GameCharacter:
                 target_rotation=(self.rotation + 20) % 360,
                 number_frames=30
             )
-            self.busy_frame = 30
-            self.max_busy_frame = 30
+            # self.busy_frame = 30
+            # self.max_busy_frame = 30
+            self.set_busy(30)
             
     def release_body(self) -> None:
         self.dragged_body = None
-        
-    def manage_npc_behaviour(self) -> None:
-        
-        if self.locked: return
-        
-        if self.inconsious: return
-        
-        if not self.paths and self.original_path:
-            self.paths.extend(self.original_path)
-            # print("loop_back")
-        
-        if not self.paths: return
-        
-        if not self.is_waiting and self.paths and not self.current_pathfinding:
-            self.go_to(position=self.paths[0]["position"])
-            
-        # Manage waiting
-        if self.is_waiting:
-            self.wait_time += 1
-            if self.wait_time >= self.paths[0]["time"]:
-                self.paths.pop(0)
-                # print("finish waiting", self.wait_time, self.paths)
-                self.wait_time = 0
-                self.is_waiting = False
-                
-        # Eat food
-        if self.current_pathfinding and self.paths and (self.paths[0]["action_type"] == NPCActionType.food_interaction):
-            
-            food: Food = self.paths[0].get("metadata", {}).get("food", None)
-
-            if food is not None and food.trigger_rect.collidepoint((self.x, self.y)):
-                if (food.trigger_rect.x != food.rect.x):
-                    rotation = -90 if (food.trigger_rect.x < food.rect.x) else 90
-                else:
-                    rotation = 180 if (food.trigger_rect.y < food.rect.y) else -180   
-                    
-                self.focus_position(food.trigger_rect.center, rotation, 30)
-                self.bubble_popup_manager.popup(
-                    source=food.surf,
-                    duration=60 * 2
-                )
-                self.eat(food)
-                
-                self.current_pathfinding.clear()
-                self.room_to_traverse.clear()
-                self.target_room_position = None
-                self.is_waiting = True
-                    
-                
-        self.finished_current_path = False
             
     def manage_pathfinding(self) -> None:
         
@@ -573,31 +528,6 @@ class GameCharacter:
                     from_position=(self.x, self.y),
                     to_position=self.target_room_position
                 )
-                
-    def eat(self, food: Food) -> None:
-        
-        if not food.poison: return
-        
-        # print(food.poison)
-        
-        poison_type = food.poison
-        
-        food.poison = 0
-        
-        def poison_npc() -> None:
-            if poison_type == 1: # Sedative
-                self.inconsious = True
-                self.sleeping = True
-                self.stop_moving()
-            elif poison_type == 2: # Emetic
-                # TODO: Make character sick and search for a throw up area
-                self.bubble_popup_manager.popup("I'm gonna\nthrow up !", 50 * 2, text_color=[0, 100, 0])
-            elif poison_type == 3: # Lethal
-                self.inconsious = True
-                self.alive = False
-                self.stop_moving()
-             
-        self.game.scheduler.add(poison_npc, 60 * 3)
             
     def stop_moving(self) -> None:
         self.vx = 0
@@ -716,8 +646,9 @@ class GameCharacter:
             self.udpate_inconsious_surf()
             
         self.game.scheduler.add(switch_npc_disguise, 60 * 3)
-        self.max_busy_frame = 60 * 3
-        self.busy_frame = 60 * 3
+        # self.max_busy_frame = 60 * 3
+        # self.busy_frame = 60 * 3
+        self.set_busy(60 * 3)
         
         if focus_position:
             self.focus_position(**focus_position)
@@ -795,14 +726,30 @@ class GameCharacter:
     @property
     def current_room(self) -> Room:
         return self.game.level_rooms[self.floor_id][self.room_id]
+    
+    @property
+    def current_indexes(self) -> list[int, int]:
+        current_pos = self.rect.center
+            
+        x = current_pos[0] / TILE_SIZE
+        y = current_pos[1] / TILE_SIZE
+        
+        if x < 0: x -= 1
+        if y < 0: y -= 1
+
+        return [int(x), int(y)]
  
  
 class NPC(GameCharacter):
+    
+    used_throw_up_area: set[int] = set()
     
     def __init__(self, game, x, y, rotation, disguise, character, room_id, floor_id, is_target = False, paths = None, weapon = None):
         super().__init__(game, x, y, rotation, disguise, character, room_id, floor_id, is_target, paths, weapon)
         
         self.current_state = NPCState.initial_loop
+        
+        self.throw_up_area: ThrowUpAreaData | None = None
     
     def update(self):
         self.bubble_popup_manager.update()
@@ -822,8 +769,140 @@ class NPC(GameCharacter):
         
         if self.dragged_body is not None:
             self.current_room["npcs"].append(self.dragged_body)
+            
+    def manage_npc_behaviour(self) -> None:
         
+        if self.locked: return
         
+        if self.inconsious: return
+        
+        if not self.paths and self.original_path:
+            self.paths.extend(self.original_path)
+            # print("loop_back")
+        
+        if not self.paths: return
+        
+        if not self.is_waiting and self.paths and not self.current_pathfinding:
+            self.go_to(position=self.paths[0]["position"])
+            
+        # Manage waiting
+        if self.is_waiting:
+            self.wait_time += 1
+            if self.wait_time >= self.paths[0]["time"]:
+                self.paths.pop(0)
+                # print("finish waiting", self.wait_time, self.paths)
+                self.wait_time = 0
+                self.is_waiting = False
+                
+                if self.current_state == NPCState.throwing_up:
+                    self.current_state = NPCState.initial_loop
+                
+        # Eat food
+        if self.current_pathfinding and self.paths and (self.paths[0]["action_type"] == NPCActionType.food_interaction):
+            
+            food: Food = self.paths[0].get("metadata", {}).get("food", None)
+
+            if food is not None and food.trigger_rect.collidepoint((self.x, self.y)):
+                if (food.trigger_rect.x != food.rect.x):
+                    rotation = -90 if (food.trigger_rect.x < food.rect.x) else 90
+                else:
+                    rotation = 180 if (food.trigger_rect.y < food.rect.y) else -180   
+                    
+                self.focus_position(food.trigger_rect.center, rotation, 30)
+                self.bubble_popup_manager.popup(
+                    source=food.surf,
+                    duration=60 * 2
+                )
+                self.eat(food)
+                
+                self.current_pathfinding.clear()
+                self.room_to_traverse.clear()
+                self.target_room_position = None
+                self.is_waiting = True
+                    
+        # Going to throw up
+        if self.current_state == NPCState.going_for_throw_up and self.throw_up_area is not None:
+            if self.throw_up_area["indexes"] == self.current_indexes:
+                self.current_state = NPCState.throwing_up
+                self.focus_position(
+                    target_position=(
+                        self.throw_up_area["indexes"][0] * TILE_SIZE + int(TILE_SIZE / 2),
+                        self.throw_up_area["indexes"][1] * TILE_SIZE + int(TILE_SIZE / 2)
+                    ),
+                    target_rotation=self.throw_up_area["rotation"] * 90,
+                    number_frames=30
+                )
+                
+                self.current_pathfinding.clear()
+                self.room_to_traverse.clear()
+                self.target_room_position = None
+                self.is_waiting = True
+                self.bubble_popup_manager.popup("*throwing up", self.paths[0]["time"])
+                
+        self.finished_current_path = False
+        
+    def eat(self, food: Food) -> None:
+            
+        if not food.poison: return
+        
+        # print(food.poison)
+        
+        poison_type = food.poison
+        
+        food.poison = 0
+        
+        def poison_npc() -> None:
+            if poison_type == 1: # Sedative
+                self.inconsious = True
+                self.sleeping = True
+                self.stop_moving()
+            elif poison_type == 2: # Emetic
+                # TODO: Make character sick and search for a throw up area
+                self.bubble_popup_manager.popup("I'm gonna\nthrow up !", 50 * 2, text_color=[0, 100, 0])
+                self.seek_and_go_to_throw_up_area()
+            elif poison_type == 3: # Lethal
+                self.inconsious = True
+                self.alive = False
+                self.stop_moving()
+                
+        self.game.scheduler.add(poison_npc, 60 * 3)
+        
+    def seek_and_go_to_throw_up_area(self) -> None:
+        all_floor_throw_up: list[ThrowUpAreaData] = get_from_dict(self.game.level_data, ["throw_up", self.floor_id], [])
+        
+        nearset_throw_up_area = self.find_nearest_element(
+            all_floor_throw_up, 
+            lambda t: (t["indexes"][0] * TILE_SIZE, t["indexes"][1] * TILE_SIZE)
+        )
+        
+        if nearset_throw_up_area is None:
+            self.bubble_popup_manager.popup("Ok nevermind it will be fine...", 60 * 2)
+            return
+        
+        self.current_state = NPCState.going_for_throw_up
+        self.paths.clear()
+        self.paths.append({
+            "action_type": NPCActionType.throw_up,
+            "metadata": {},
+            "rotation": nearset_throw_up_area["rotation"],
+            "position": (
+                nearset_throw_up_area["indexes"][0] * TILE_SIZE + int(TILE_SIZE / 2), 
+                nearset_throw_up_area["indexes"][1] * TILE_SIZE + int(TILE_SIZE / 2)
+            ),
+            "time": 60 * 60
+        })
+        
+        self.throw_up_area = nearset_throw_up_area
+        
+        # self.used_throw_up_area.add(id(nearset_throw_up_area))
+        self.interrupt_pathfinding()
+        
+    def interrupt_pathfinding(self) -> None:
+        self.room_to_traverse.clear()
+        self.current_pathfinding.clear()
+        self.next_door = None
+        self.target_room_position = None
+        self.is_waiting = False
         
 class Player(GameCharacter):
     
@@ -1053,8 +1132,9 @@ class Player(GameCharacter):
             number_frames=hide_time
         )
         
-        self.max_busy_frame = hide_time
-        self.busy_frame = hide_time
+        # self.max_busy_frame = hide_time
+        # self.busy_frame = hide_time
+        self.set_busy(hide_time)
         
         container.bodies.append(body)
         
@@ -1080,8 +1160,9 @@ class Player(GameCharacter):
             
         self.focus_position(food.trigger_rect.center, rotation, 30)
         
-        self.max_busy_frame = 60 * 2
-        self.busy_frame = self.max_busy_frame
+        # self.max_busy_frame = 60 * 2
+        # self.busy_frame = self.max_busy_frame
+        self.set_busy(60 * 2)
         
         def apply_poison() -> None:
             food.poison = poison_type
@@ -1109,8 +1190,9 @@ class Player(GameCharacter):
         npc.locked = True
         npc.vx = 0
         npc.vy = 0
-        self.max_busy_frame = pacification_time
-        self.busy_frame = self.max_busy_frame
+        # self.max_busy_frame = pacification_time
+        # self.busy_frame = self.max_busy_frame
+        self.set_busy(pacification_time)
         
         def incousious_npc() -> None:
             npc.inconsious = True
@@ -1125,6 +1207,8 @@ class Player(GameCharacter):
             npc.locked = False
         
         self.game.scheduler.add(task=incousious_npc, schedule=pacification_time)
+        
+        npc.bubble_popup_manager.clear()
         
     def update(self, all_events: list[pygame.Event]):
         self.bubble_popup_manager.update()
@@ -1199,7 +1283,7 @@ class Player(GameCharacter):
                 self.game.camera.convert_pos((x, y)),
                 2
             )
-            
+                        
 class Civilian(NPC):
     pass
 

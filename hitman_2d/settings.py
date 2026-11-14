@@ -170,6 +170,7 @@ class NPCActionType(int, Enum):
     wait = 0
     food_interaction = 1
     smoke = 2
+    throw_up = 3
 
 
 class RoomData(TypedDict):

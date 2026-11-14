@@ -81,6 +81,9 @@ class BubblePopupManager:
         
         self.popup_queue.append(count_surf)
         
+    def clear(self) -> None:
+        self.popup_queue.clear()
+        
     def draw(self) -> None:
         if not self.popup_queue: return 
         
