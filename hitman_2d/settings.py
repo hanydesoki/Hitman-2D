@@ -10,7 +10,8 @@ FPS = 60
 
 # LEVEL_CREATOR 
 LEFT_SIDEBAR_MENU_WIDTH = 300
-RIGTH_SIDEBAR_MENU_WIDTH = 200
+# RIGTH_SIDEBAR_MENU_WIDTH = 200
+RIGTH_SIDEBAR_MENU_WIDTH = 0
 BACKGROUND_COLOR = (50, 50, 50)
 SIDEBAR_BACKGROUND_COLOR = (100, 100, 100)
 
@@ -149,6 +150,18 @@ MENU_LAYOUT: dict[str, dict[str, dict]] = {
             "text": ""
         }
     },
+    "throw_up_location": {
+        "add_throw_up": {
+            "type": "button",
+            "label": "+ Add Throw Up Spot",
+            "text": ""
+        },
+        "delete_throw_up": {
+            "type": "button",
+            "label": "- Delete Throw Up Spot",
+            "text": ""
+        }
+    },
     "exit": {}
 }
 
@@ -201,13 +214,6 @@ class FoodData(TypedDict):
     asset: str
     rotation: int
     trigger_tile: list[int, int]
-
-class LevelData(TypedDict):
-    rooms: dict[str, dict[str, RoomData]]
-    doors: dict[str, list[DoorData]]
-    furnitures: dict[str, list[FurnitureData]]
-    npc: dict[str, list[NPCData]]
-    food: dict[str, list[FoodData]]
     
 class NPCPathData(TypedDict):
     action_type: NPCActionType
@@ -215,4 +221,18 @@ class NPCPathData(TypedDict):
     position: list[int, int]
     rotation: int
     metadata: NotRequired[dict]
+    
+class ThrowUpAreaData(TypedDict):
+    indexes: list[int, int]
+    rotation: int
+
+class LevelData(TypedDict):
+    rooms: dict[str, dict[str, RoomData]]
+    doors: dict[str, list[DoorData]]
+    furnitures: dict[str, list[FurnitureData]]
+    npc: dict[str, list[NPCData]]
+    food: dict[str, list[FoodData]]
+    throw_up: dict[str, list[ThrowUpAreaData]]
+    
+
     

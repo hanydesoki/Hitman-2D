@@ -81,6 +81,7 @@ class LevelCreator:
                 # "player": "Player",
                 "npc": "NPC",
                 "npc_path": "NPC Path",
+                "throw_up_location": "Throw up area",
                 "exit": "Exit"
             },
             x=10,
@@ -150,16 +151,46 @@ class LevelCreator:
         self.is_placing_food: bool = False
         self.selected_food_asset: str = None
         
-        self.json_editor: JSONEditor | None = JSONEditor(
-            {
-                "name": "John",
-                "type": "civilian"
-            },
-            x=self.screen_width - RIGTH_SIDEBAR_MENU_WIDTH + 10,
-            y=10,
-            width=RIGTH_SIDEBAR_MENU_WIDTH - 20,
-            key="params"
+        # Throw up menu states
+        self.selected_throw_up_area: ThrowUpAreaData = None
+        self.is_placing_throw_up_area: bool = False
+        
+        self.throw_up_surf = pygame.Surface((TILE_SIZE, TILE_SIZE))
+        pygame.draw.rect(
+            self.throw_up_surf,
+            [0, 100, 0],
+            (0, 0, TILE_SIZE, TILE_SIZE),
+            width=3
         )
+        
+        pygame.draw.line(
+            self.throw_up_surf,
+            [0, 100, 0],
+            start_pos=(int(TILE_SIZE / 2), int(TILE_SIZE * 0.2)),
+            end_pos=(int(TILE_SIZE / 2), int(TILE_SIZE * 0.8))
+        )
+        pygame.draw.lines(
+            self.throw_up_surf,
+            [0, 100, 0],
+            closed=False,
+            points=[
+                [int(TILE_SIZE / 2) - int(TILE_SIZE * 0.2), int(TILE_SIZE * 0.2) + int(TILE_SIZE * 0.2)],
+                [int(TILE_SIZE / 2), int(TILE_SIZE * 0.2)],
+                [int(TILE_SIZE / 2) + int(TILE_SIZE * 0.2), int(TILE_SIZE * 0.2) + int(TILE_SIZE * 0.2)]
+            ]
+        )
+        
+        # self.json_editor: JSONEditor | None = JSONEditor(
+        #     {
+        #         "name": "John",
+        #         "type": "civilian"
+        #     },
+        #     x=self.screen_width - RIGTH_SIDEBAR_MENU_WIDTH + 10,
+        #     y=10,
+        #     width=RIGTH_SIDEBAR_MENU_WIDTH - 20,
+        #     key="params"
+        # )
+        self.json_editor = None
     
     def setup_menu_layout(self) -> None:
         self.menu_layout: dict[str, list] = {}
@@ -386,6 +417,10 @@ class LevelCreator:
                 debug_dict = debug_dict | {"Selected NPC " + k: v for k, v in self.selected_pathed_npc.items() if k != "path"}
             if self.selected_npc_path is not None:
                 debug_dict = debug_dict | {"Selected NPC Path " + k: v for k, v in self.selected_npc_path.items()}
+        elif self.current_mode == "throw_up_location":
+            debug_dict["Is placing throw up area"] = self.is_placing_throw_up_area
+            if self.selected_throw_up_area is not None:
+                debug_dict = debug_dict | {"Selected Throw Up Area " + k: v for k, v in self.selected_throw_up_area.items()}
         
         top_draw: int = 0
         for label, value in debug_dict.items():
@@ -412,10 +447,38 @@ class LevelCreator:
         self.draw_doors()
         self.draw_npcs()
         self.draw_npc_paths()
+        self.draw_throw_up_areas()
         self.draw_debug_menu()
         self.draw_sidebar_menu()
         
         self.menu_control.draw()
+        
+    def draw_throw_up_areas(self) -> None:
+        if not self.current_mode == "throw_up_location": return
+        
+        all_current_floor_throw_up: list[ThrowUpAreaData] = get_from_dict(
+            self.level_data, 
+            ["throw_up", str(self.current_floor)], 
+            []
+        )[:]
+        
+        if self.selected_throw_up_area is not None and self.selected_throw_up_area not in all_current_floor_throw_up:
+            all_current_floor_throw_up.append(self.selected_throw_up_area)
+        
+        for throw_up_data in all_current_floor_throw_up:
+            surf = pygame.transform.rotate(self.throw_up_surf, throw_up_data["rotation"] * 90)
+            surf.set_colorkey("black")
+            if throw_up_data is self.selected_throw_up_area:
+                surf.set_alpha(150)
+                
+            self.window.blit(
+                surf,
+                self.camera.convert_pos(
+                    self.convert_game_pos(
+                        (throw_up_data["indexes"][0] * TILE_SIZE, throw_up_data["indexes"][1] * TILE_SIZE)
+                    )
+                )
+            )
         
     def draw_npc_paths(self) -> None:
         if self.current_mode != "npc_path": return
@@ -708,6 +771,8 @@ class LevelCreator:
             self.manage_npc_path_menu(all_events)
         elif self.current_mode == "food":
             self.manage_food_menu(all_events)
+        elif self.current_mode == "throw_up_location":
+            self.manage_throw_up_menu(all_events)
             
         if self.json_editor is not None:
             self.json_editor.update(all_events)
@@ -819,6 +884,101 @@ class LevelCreator:
             if right_clicked:
                 self.selected_food = None
                 self.is_placing_food = False
+                
+    def manage_throw_up_menu(self, all_events: list[pygame.Event]) -> None:
+        key_pressed = pygame.key.get_pressed()
+        left_clicked: bool = False
+        right_clicked: bool = False
+        scroll_y: int = 0
+        mouse_pressed = pygame.mouse.get_pressed()
+                    
+        ctrl_pressed = key_pressed[pygame.K_LCTRL]
+        
+        mouse_indexes = self.current_mouse_indexes()
+        screen_mouse_pos = self.screen_mouse_pos()
+        
+        for event in all_events:
+            if event.type == pygame.MOUSEWHEEL:
+                attr_name: str = "room_width" if ctrl_pressed else "room_height"
+                setattr(
+                    self,
+                    attr_name,
+                    max(3, getattr(self, attr_name, 0) + event.y)
+                )
+                
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[0]:
+                left_clicked = True
+            if event.type == pygame.MOUSEBUTTONDOWN and mouse_pressed[2]:
+                right_clicked = True
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_y = event.y
+            
+        if Button.all_widgets["add_throw_up"].is_clicked() and not self.is_placing_throw_up_area:
+            self.is_placing_throw_up_area = True
+            self.selected_throw_up_area = {
+                "indexes": [0, 0],
+                "rotation": 0
+            }
+            left_clicked = False
+        
+        # Placing throw up area
+        if (
+            self.is_placing_throw_up_area 
+            and self.selected_throw_up_area is not None 
+            and mouse_indexes is not None
+        ):
+            self.selected_throw_up_area["indexes"] = list(mouse_indexes)
+            
+            # Rotating throw up area
+            if scroll_y:
+                self.selected_throw_up_area["rotation"] = (self.selected_throw_up_area["rotation"] + scroll_y) % 4
+            
+            # Place throw up area
+            if left_clicked:
+                if get_from_dict(self.level_data, ["throw_up", self.current_floor], None) is None:
+                    set_to_dict(self.level_data, ["throw_up", self.current_floor], [])
+                
+                all_current_floor_throw_up: list[ThrowUpAreaData] = get_from_dict(
+                    self.level_data, 
+                    ["throw_up", str(self.current_floor)], 
+                    []
+                )
+                
+                if self.selected_throw_up_area not in all_current_floor_throw_up:
+                    all_current_floor_throw_up.append(self.selected_throw_up_area)
+                    
+                self.selected_throw_up_area = None
+                self.is_placing_throw_up_area = False
+                left_clicked = False
+        
+        # Delete throw up area  
+        if (right_clicked or Button.all_widgets["delete_throw_up"].is_clicked()) and self.is_placing_throw_up_area:
+            
+            all_current_floor_throw_up: list[ThrowUpAreaData] = get_from_dict(
+                self.level_data, 
+                ["throw_up", str(self.current_floor)], 
+                []
+            )
+            
+            if self.selected_throw_up_area in all_current_floor_throw_up:
+                all_current_floor_throw_up.remove(self.selected_throw_up_area)
+
+            self.is_placing_throw_up_area = False
+            self.selected_throw_up_area = None
+        
+        # Select already placed throw up area
+        if left_clicked and not self.is_placing_throw_up_area and mouse_indexes is not None:
+            all_current_floor_throw_up: list[ThrowUpAreaData] = get_from_dict(
+                self.level_data, 
+                ["throw_up", str(self.current_floor)], 
+                []
+            )
+            
+            for throw_up_data in all_current_floor_throw_up:
+                if throw_up_data["indexes"] == list(mouse_indexes):
+                    self.selected_throw_up_area = throw_up_data
+                    self.is_placing_throw_up_area = True
+                    break
             
     def manage_room_menu(self, all_events: list[pygame.Event]) -> None:
         
