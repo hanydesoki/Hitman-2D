@@ -2,6 +2,7 @@
 import math
 import random
 from typing import TypedDict, TYPE_CHECKING, Generator, NotRequired, Callable
+from enum import Enum
 
 import pygame
 from pathfinding.finder.a_star import AStarFinder, DiagonalMovement
@@ -277,7 +278,12 @@ class GameCharacter:
         return True
     
     def find_nearest_element[P](self, elements: list[P], key: Callable[[P], tuple[int, int]] = None) -> P | None:
-        
+        """Find the nearest element from the npc in a list taking account of room(s) to traverse
+        and raw distance.
+
+        Returns:
+            Nearest element (same type as the element inside the 'elements' list)
+        """
         if len(elements) == 0: return None
         
         check_only_current_room: bool = False
@@ -793,6 +799,11 @@ class GameCharacter:
  
 class NPC(GameCharacter):
     
+    def __init__(self, game, x, y, rotation, disguise, character, room_id, floor_id, is_target = False, paths = None, weapon = None):
+        super().__init__(game, x, y, rotation, disguise, character, room_id, floor_id, is_target, paths, weapon)
+        
+        self.current_state = NPCState.initial_loop
+    
     def update(self):
         self.bubble_popup_manager.update()
         self.manage_npc_behaviour()
@@ -1192,7 +1203,20 @@ class Player(GameCharacter):
 class Civilian(NPC):
     pass
 
+
 class Guard(NPC):
     pass
-        
-        
+
+    
+class NPCState(int, Enum):
+    initial_loop = 0
+    going_for_a_body = 1
+    hostile_to_player = 2
+    heard_a_sound = 3
+    investigating_sound = 4
+    search_area = 5
+    follow_tresspassing_player = 6
+    escort_mode_out = 7
+    npc_talking = 8
+    going_for_throw_up = 9
+    throwing_up = 10

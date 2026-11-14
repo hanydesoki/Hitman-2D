@@ -31,8 +31,6 @@ class BubblePopupManager:
 
     def popup(self, source: pygame.Surface | str, duration: int, padding: int = 5, text_color=None) -> None:
         
-        
-        
         if isinstance(source, str):
             surface = self.text_font.render(source, False, text_color or [1, 1, 1])
         else:
