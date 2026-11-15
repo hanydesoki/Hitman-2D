@@ -460,6 +460,7 @@ class GameCharacter:
             
     def release_body(self) -> None:
         self.dragged_body = None
+        self.doing_illegal_action = False
             
     def manage_pathfinding(self) -> None:
         
@@ -719,6 +720,7 @@ class GameCharacter:
         if self.dragged_body is None: return
         
         self.dragged_body.x, self.dragged_body.y = self.rect.center
+        self.doing_illegal_action = True
         
     def _scan_line_of_sight(self, player_see_through: bool = False, body_see_through: bool = False) -> None:
         start_pos_x = self.current_room["position"][0] + TILE_SIZE
@@ -753,8 +755,9 @@ class GameCharacter:
  
 class NPC(GameCharacter):
     
-    # used_throw_up_area: set[int] = set()
     all_npcs: list["NPC"] = []
+    
+    TIME_TO_LOSE_SIGHT: int = 3
     
     def __init__(self, game, x, y, rotation, disguise, character, room_id, floor_id, is_target = False, paths = None, weapon = None):
         super().__init__(game, x, y, rotation, disguise, character, room_id, floor_id, is_target, paths, weapon)
@@ -959,7 +962,7 @@ class NPC(GameCharacter):
         
         if (
             current_compromise_info is not None 
-            and time.time() - current_compromise_info.get("time", 0) < 3
+            and time.time() - current_compromise_info.get("time", 0) < self.TIME_TO_LOSE_SIGHT
         ):
             self.compromise_player(update_time=False)
             
@@ -986,6 +989,22 @@ class NPC(GameCharacter):
                 self.bubble_popup_manager.popup("Hey what are you doing?!", 60 * 2, text_color="red")
                 
             self.compromise_player()
+            
+    def draw(self) -> None:
+        super().draw()
+        
+        compromise_info = self.compromise_infos.get(self.game.player.disguise["name"], None)
+        if compromise_info is not None:
+            pygame.draw.circle(
+                self.game.window,
+                color=(
+                    "orange" 
+                    if time.time() - compromise_info["time"] < self.TIME_TO_LOSE_SIGHT 
+                    else "white"
+                ),
+                center=self.game.camera.convert_pos((self.rect.centerx, self.rect.top - 15)),
+                radius=5
+            )
     
     def update(self):
         self.manage_spot_player_actions()
