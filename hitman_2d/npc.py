@@ -2,7 +2,6 @@
 import math
 import random
 import time
-import copy
 from typing import TypedDict, TYPE_CHECKING, Generator, NotRequired, Callable
 from enum import Enum
 
@@ -64,6 +63,7 @@ class CompromiseInfo(TypedDict):
     time: int
     position: tuple[int, int]
     disguise: str
+    room_id: str
     
 class GameCharacter:
     
@@ -656,7 +656,7 @@ class GameCharacter:
             other.udpate_inconsious_surf()
             self.udpate_inconsious_surf()
             
-        self.game.scheduler.add(switch_npc_disguise, 60 * 3)
+        self.game.scheduler.add(switch_npc_disguise, 60 * 2)
         # self.max_busy_frame = 60 * 3
         # self.busy_frame = 60 * 3
         self.set_busy(60 * 3, illegal=True)
@@ -765,14 +765,25 @@ class NPC(GameCharacter):
         
         self.compromise_infos: dict[str, CompromiseInfo] = {}
         
-    def compromise_player(self) -> None:
-        new_compromise_info: CompromiseInfo = {
-            "disguise": self.game.player.disguise["name"],
-            "time": time.time(),
-            "position": self.game.player.rect.center
-        }
+    def compromise_player(self, update_time: bool = True) -> None:
+        if self.game.player.disguise["name"] not in self.compromise_infos:
+
+            new_compromise_info: CompromiseInfo = {
+                "disguise": self.game.player.disguise["name"],
+                "time": time.time(),
+                "position": self.game.player.rect.center,
+                "room_id": self.game.player.room_id
+            }
+            
+            self.compromise_infos[self.game.player.disguise["name"]] = new_compromise_info
+            
+        else:
+            if update_time:
+                self.compromise_infos[self.game.player.disguise["name"]]["time"] = time.time()
+
+            self.compromise_infos[self.game.player.disguise["name"]]["position"] = self.game.player.rect.center
+            self.compromise_infos[self.game.player.disguise["name"]]["room_id"] = self.game.player.room_id
         
-        self.compromise_infos[self.game.player.disguise["name"]] = new_compromise_info
         
     def share_compromise_infos(self, other: "NPC") -> None:
         compromise_disguises = set(self.compromise_infos).union(other.compromise_infos)
@@ -784,23 +795,15 @@ class NPC(GameCharacter):
             other_disguise_compromise_time = self.compromise_infos.get(disguise, {}).get("time", 0)
             
             if npc_disguise_compromise_time >= other_disguise_compromise_time:
-                shared_compromised_infos[disguise] = self.compromise_infos[disguise].copy()
+                shared_compromised_infos[disguise] = self.compromise_infos[disguise]
             else:
-                shared_compromised_infos[disguise] = other.compromise_infos[disguise].copy()
+                shared_compromised_infos[disguise] = other.compromise_infos[disguise]
                 
-        self.compromise_infos = shared_compromised_infos
-        other.compromise_infos = shared_compromised_infos
+        self.compromise_infos = shared_compromised_infos.copy()
+        other.compromise_infos = shared_compromised_infos.copy()
         
     def set_state(self, new_state: NPCState) -> None:
         self._current_state = new_state
-    
-    def update(self):
-        self.bubble_popup_manager.update()
-        self.manage_npc_behaviour()
-        self.manage_pathfinding()
-        self.manage_body_dragged()
-        self.manage_movement()
-        # self.manage_focus_transitions()
         
     def pass_door(self, door) -> None:
         self.current_room["npcs"].remove(self)
@@ -947,6 +950,51 @@ class NPC(GameCharacter):
         self.next_door = None
         self.target_room_position = None
         self.is_waiting = False
+        
+    def manage_spot_player_actions(self) -> None:
+        if self.inconsious: return
+        
+        # NPC still track player for a couple of seconds even if not insight
+        current_compromise_info = self.compromise_infos.get(self.game.player.disguise["name"], None)
+        
+        if (
+            current_compromise_info is not None 
+            and time.time() - current_compromise_info.get("time", 0) < 3
+        ):
+            self.compromise_player(update_time=False)
+            
+        if self.game.player.room_id != self.room_id: return
+        
+        # Compromise player when doing an illegal action or wearing compromised disguise if insight
+        if (
+            (
+                self.game.player.doing_illegal_action
+                or self.game.player.disguise["name"] in self.compromise_infos
+            )
+            and self.can_see_point(
+                self.game.player.rect.center, 
+                player_see_through=True
+            )
+        ):  
+            current_compromise_info = self.compromise_infos.get(self.game.player.disguise["name"], None)
+            
+            
+            if (
+                current_compromise_info is None
+                or ((time.time() - current_compromise_info["time"]) > 10)
+            ):
+                self.bubble_popup_manager.popup("Hey what are you doing?!", 60 * 2, text_color="red")
+                
+            self.compromise_player()
+    
+    def update(self):
+        self.manage_spot_player_actions()
+        self.manage_npc_behaviour()
+        self.manage_pathfinding()
+        self.manage_body_dragged()
+        self.manage_movement()
+        self.bubble_popup_manager.update()
+        
     
     @classmethod        
     def get_all_used_throw_up_areas(cls) -> list[ThrowUpAreaData]:
@@ -958,6 +1006,14 @@ class NPC(GameCharacter):
                     used_throw_up_areas.append(throw_up_area)
                     
         return used_throw_up_areas
+    
+
+class Civilian(NPC):
+    pass
+
+
+class Guard(NPC):
+    pass
         
         
 class Player(GameCharacter):
@@ -1339,13 +1395,6 @@ class Player(GameCharacter):
                 self.game.camera.convert_pos((x, y)),
                 2
             )
-                        
-class Civilian(NPC):
-    pass
-
-
-class Guard(NPC):
-    pass
 
     
 class NPCState(int, Enum):
