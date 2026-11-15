@@ -696,6 +696,10 @@ class GameCharacter:
 
         if dot_product > -0.2: return False
         
+        # Check walls intersection
+        for wall_rect in self.current_room["walls"]:
+            if self.segment_intersect_rect(self.x, self.y, point[0], point[1], rect=wall_rect): return False
+            
         # Check all furniture intersection
         for furniture_data, _, rect in self.current_room["furnitures"]:
             if player_see_through and furniture_data.get("player_see_through", False): continue
@@ -992,6 +996,8 @@ class NPC(GameCharacter):
             
     def draw(self) -> None:
         super().draw()
+        
+        if self.inconsious: return
         
         compromise_info = self.compromise_infos.get(self.game.player.disguise["name"], None)
         if compromise_info is not None:
