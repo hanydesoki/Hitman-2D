@@ -114,7 +114,6 @@ class GameCharacter:
         
         self.wait_time: int = 0
         self.is_waiting: bool = False
-        self.finished_current_path: bool = False
         
         self.vx: float = 0
         self.vy: float = 0
@@ -128,6 +127,17 @@ class GameCharacter:
         self.current_pathfinding: list[pygame.Rect] = []
         self.room_to_traverse: list[str] = []
         self.target_room_position: tuple[float, float] = None
+        
+        # Only be True on the frame the player is spotted after a short period of time 
+        # (if the player was not tracked at this point)
+        self.just_spotted_player_short_term: bool = False 
+        
+        # Only be True on the frame the player is spotted after a long time 
+        # (Only used to display a message on top of the head)
+        self.just_spotted_player_long_term: bool = False
+        
+        self.player_tracked: bool = False
+        
         
         self.next_door: Door | None = None
         
@@ -726,6 +736,23 @@ class GameCharacter:
         self.dragged_body.x, self.dragged_body.y = self.rect.center
         self.doing_illegal_action = True
         
+    def is_valid_place(self, point: tuple[int, int]) -> bool:
+        room_to_check: Room = None
+        for room in self.game.level_rooms.get(self.floor_id, {}).values():
+            if room["rect"].collidepoint(*point):
+                room_to_check = room
+                break
+            
+        if room_to_check is None: return False
+        
+        for wall_rect in room["walls"]:
+            if wall_rect.collidepoint(*point): return False
+            
+        for _, __, furniture_rect in room["furnitures"]:
+            if furniture_rect.collidepoint(*point): return False
+            
+        return True
+        
     def _scan_line_of_sight(self, player_see_through: bool = False, body_see_through: bool = False) -> None:
         start_pos_x = self.current_room["position"][0] + TILE_SIZE
         end_pos_x = self.current_room["position"][0] + self.current_room["pixel_width"] - TILE_SIZE
@@ -733,7 +760,6 @@ class GameCharacter:
         start_pos_y = self.current_room["position"][1] + TILE_SIZE
         end_pos_y = self.current_room["position"][1] + self.current_room["pixel_height"] - TILE_SIZE
         
-        step = 10
         self._line_of_sight_points_debug.clear()
         for x in range(start_pos_x, end_pos_x, 10):
             for y in range(start_pos_y, end_pos_y, 10):
@@ -790,7 +816,7 @@ class NPC(GameCharacter):
 
             self.compromise_infos[self.game.player.disguise["name"]]["position"] = self.game.player.rect.center
             self.compromise_infos[self.game.player.disguise["name"]]["room_id"] = self.game.player.room_id
-        
+            
         
     def share_compromise_infos(self, other: "NPC") -> None:
         compromise_disguises = set(self.compromise_infos).union(other.compromise_infos)
@@ -823,17 +849,17 @@ class NPC(GameCharacter):
         if self.dragged_body is not None:
             self.current_room["npcs"].append(self.dragged_body)
             
-    def manage_npc_behaviour(self) -> None:
+    def manage_npc_behaviour(self) -> bool:
         
-        if self.locked: return
+        if self.locked: return False
         
-        if self.inconsious: return
+        if self.inconsious: return False
         
         if not self.paths and self.original_path:
             self.paths.extend(self.original_path)
             # print("loop_back")
         
-        if not self.paths: return
+        if not self.paths: return False
         
         if not self.is_waiting and self.paths and not self.current_pathfinding:
             self.go_to(position=self.paths[0]["position"])
@@ -893,7 +919,7 @@ class NPC(GameCharacter):
                 self.is_waiting = True
                 self.bubble_popup_manager.popup("*throwing up", self.paths[0]["time"])
                 
-        self.finished_current_path = False
+        return True
         
     def eat(self, food: Food) -> None:
             
@@ -959,6 +985,9 @@ class NPC(GameCharacter):
         self.is_waiting = False
         
     def manage_spot_player_actions(self) -> None:
+        self.just_spotted_player_short_term = False
+        self.just_spotted_player_long_term = False
+        self.player_tracked = False
         if self.inconsious: return
         
         # NPC still track player for a couple of seconds even if not insight
@@ -969,6 +998,7 @@ class NPC(GameCharacter):
             and time.time() - current_compromise_info.get("time", 0) < self.TIME_TO_LOSE_SIGHT
         ):
             self.compromise_player(update_time=False)
+            self.player_tracked = True
             
         if self.game.player.room_id != self.room_id: return
         
@@ -985,29 +1015,28 @@ class NPC(GameCharacter):
         ):  
             current_compromise_info = self.compromise_infos.get(self.game.player.disguise["name"], None)
             
-            
             if (
                 current_compromise_info is None
                 or ((time.time() - current_compromise_info["time"]) > 10)
             ):
-                self.bubble_popup_manager.popup("Hey what are you doing?!", 60 * 2, text_color="red")
+                self.just_spotted_player_long_term = True
                 
             self.compromise_player()
+            
+            if not self.player_tracked:
+                self.just_spotted_player_short_term = True
+            
+            self.player_tracked = True
             
     def draw(self) -> None:
         super().draw()
         
         if self.inconsious: return
         
-        compromise_info = self.compromise_infos.get(self.game.player.disguise["name"], None)
-        if compromise_info is not None:
+        if self.game.player.disguise["name"] in self.compromise_infos:
             pygame.draw.circle(
                 self.game.window,
-                color=(
-                    "orange" 
-                    if time.time() - compromise_info["time"] < self.TIME_TO_LOSE_SIGHT 
-                    else "white"
-                ),
+                color="orange" if self.player_tracked else "white",
                 center=self.game.camera.convert_pos((self.rect.centerx, self.rect.top - 15)),
                 radius=5
             )
@@ -1034,12 +1063,78 @@ class NPC(GameCharacter):
     
 
 class Civilian(NPC):
-    pass
+    def manage_npc_behaviour(self) -> bool:
+        
+        if not super().manage_npc_behaviour(): return False 
+        
+        if self.just_spotted_player_short_term:
+            self.bubble_popup_manager.popup("!", 30, text_color="red")
+            
+        if self.just_spotted_player_long_term:
+            self.bubble_popup_manager.popup("Someone help please !!", 60 * 2, text_color="red")
+            
+        return True
 
 
 class Guard(NPC):
-    pass
+    
+    MIN_DIST_AGGRO_PLAYER = 30
+    MAX_DIST_AGGRO_PLAYER = 100
+    
+    def manage_npc_behaviour(self) -> bool:
         
+        if not super().manage_npc_behaviour(): return False
+        
+        if self.just_spotted_player_short_term:
+            self.bubble_popup_manager.popup("!", 30, text_color="red")
+            self.interrupt_pathfinding()
+            
+        if self.just_spotted_player_long_term:
+            self.bubble_popup_manager.popup("Hey what are you doing?!", 60 * 2, text_color="red")
+            
+        if self.player_tracked and not self.paths:
+            for _ in range(10):
+                # Get random position around the player
+                player_position = self.game.player.rect.center
+                random_angle = math.radians(random.randint(0, 360))
+                
+                random_distance = (
+                    self.MIN_DIST_AGGRO_PLAYER
+                    + (self.MAX_DIST_AGGRO_PLAYER - self.MIN_DIST_AGGRO_PLAYER) * random.random()
+                )
+                
+                dx = math.cos(random_angle) * random_distance
+                dy = math.sin(random_angle) * random_distance
+                
+                new_position = int(player_position[0] + dx), int(player_position[1] + dy)
+                 
+                if self.is_valid_place(new_position):
+                    self.paths.append({
+                        "action_type": NPCActionType.wait,
+                        "metadata": {},
+                        "position": new_position,
+                        "rotation": 0,
+                        "time": 60 * random.randint(1, 3)
+                    })
+                    break
+             
+        return True
+    
+    def manage_rotation(self) -> None:
+        if self.player_tracked:
+            player_pos = self.game.player.rect.center
+            npc_pos = self.rect.center
+            
+            dx = player_pos[0] - npc_pos[0]
+            dy = player_pos[1] - npc_pos[1]
+            
+            self.rotation = (math.degrees(math.atan2(-dy, dx))) - 90 % 360
+        
+    def update(self):
+        super().update()
+        self.manage_rotation()
+    
+    
         
 class Player(GameCharacter):
     
