@@ -2,7 +2,7 @@ from typing import TypedDict, NotRequired
 from enum import Enum
 
 SCREEN_SIZE = (0, 0)
-# SCREEN_SIZE = (800, 600)
+SCREEN_SIZE = (800, 600)
 SCREEN_WIDTH, SCREEN_HEIGHT = SCREEN_SIZE
 
 FPS = 60

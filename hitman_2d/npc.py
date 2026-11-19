@@ -136,6 +136,8 @@ class GameCharacter:
         # (Only used to display a message on top of the head)
         self.just_spotted_player_long_term: bool = False
         
+        self.just_spotted_body_found: NPC = None
+        
         self.player_tracked: bool = False
         
         
@@ -624,8 +626,13 @@ class GameCharacter:
         
         iteration = -1
         
-        while iteration != 0:
-            
+        max_iteration = len(self.current_pathfinding) + 1
+        
+        try_i = 0
+        
+        while iteration != 0 and try_i < max_iteration:
+            try_i += 1
+            # print(random.random(), iteration, try_i)
             rect_start = self.rect if len(cleaned_pathfinding) == 0 else cleaned_pathfinding[-1]
 
             for i, path_rect in enumerate(self.current_pathfinding[::-1]):
@@ -654,7 +661,7 @@ class GameCharacter:
                     iteration = i
                     cleaned_pathfinding.append(path_rect)
                     break
-        
+                
         if cleaned_pathfinding:
             self.current_pathfinding = cleaned_pathfinding
         
@@ -855,7 +862,7 @@ class NPC(GameCharacter):
         
         if self.inconsious: return False
         
-        if not self.paths and self.original_path:
+        if not self.paths and self.original_path and not self.player_tracked:
             self.paths.extend(self.original_path)
             # print("loop_back")
         
@@ -1028,6 +1035,25 @@ class NPC(GameCharacter):
             
             self.player_tracked = True
             
+    def manage_spot_body_found(self) -> None:
+        self.just_spotted_body_found = None
+        if self.inconsious: return
+        
+        for npc in self.current_room["npcs"]:
+            if (
+                npc.inconsious 
+                and self not in npc.metadata.get("found_by", set())
+                and self.can_see_point(npc.rect.center, player_see_through=False, body_see_through=False)
+            ):
+                if npc.metadata.get("found_by", None) is None:
+                    npc.metadata["found_by"] = set()
+                    
+                npc.metadata["found_by"].add(self)
+                
+                self.just_spotted_body_found = npc
+                break
+
+            
     def draw(self) -> None:
         super().draw()
         
@@ -1043,6 +1069,7 @@ class NPC(GameCharacter):
     
     def update(self):
         self.manage_spot_player_actions()
+        self.manage_spot_body_found()
         self.manage_npc_behaviour()
         self.manage_pathfinding()
         self.manage_body_dragged()
@@ -1074,6 +1101,14 @@ class Civilian(NPC):
             self.bubble_popup_manager.popup("Someone help please !!", 60 * 2, text_color="red")
             
         return True
+    
+    def manage_spot_body_found(self):
+        super().manage_spot_body_found()
+        
+        if self.just_spotted_body_found is not None:
+            self.bubble_popup_manager.popup(self.just_spotted_body_found.inconsious_surf, duration=60 * 3)
+            self.bubble_popup_manager.popup("I just found someone on the floor!", duration=60 * 3)
+
 
 
 class Guard(NPC):
@@ -1129,6 +1164,13 @@ class Guard(NPC):
             dy = player_pos[1] - npc_pos[1]
             
             self.rotation = (math.degrees(math.atan2(-dy, dx))) - 90 % 360
+            
+    def manage_spot_body_found(self):
+        super().manage_spot_body_found()
+        
+        if self.just_spotted_body_found is not None:
+            self.bubble_popup_manager.popup(self.just_spotted_body_found.inconsious_surf, duration=60)
+            self.bubble_popup_manager.popup("Hey are you ok?", duration=60)
         
     def update(self):
         super().update()

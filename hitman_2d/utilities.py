@@ -53,9 +53,12 @@ def find_all_paths(
     """
     stack: list[list[str]] = [[start]]
     
-    pool_of_results: list[list[str]] = []    
+    pool_of_results: list[list[str]] = []
     
-    while stack:
+    max_iteration: int = 200
+    iteration: int = 0  
+    
+    while stack and iteration < max_iteration:
         
         current_path = stack.pop(0)
         neighbors = links[current_path[-1]]
@@ -72,7 +75,10 @@ def find_all_paths(
             if neighbor == end: # Valid path found, add to the pool of result
                 pool_of_results.append(temp_path[:])
             else: # Add the temporary path to future investigation
-                stack.append(temp_path[:]) 
+                stack.append(temp_path[:])
+                
+        
+        iteration += 1
     
     return sorted(pool_of_results, key=len)
 
